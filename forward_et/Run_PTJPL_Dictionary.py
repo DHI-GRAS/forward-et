@@ -50,16 +50,17 @@ The we just need to specify the file extention .pkl
 And the line gets something like this.
 FileList=glob.glob(InputsFolder+'*.pkl')
 """
-InputsFolder='F:\\Dictionaries\\'
-FileList=glob.glob(InputsFolder+'*.pkl')
+InputsFolder = 'F:\\Dictionaries\\'
+FileList = glob.glob(InputsFolder+'*.pkl')
 for inputfile in FileList[75:76]:
-    Dictionary=fn.OpenDictionay(inputfile)
+    Dictionary = fn.OpenDictionay(inputfile)
     """
     STARTS CALCULATING THE SHORTWAVE COMPONENTS OF THE RADIATION
     In the first part of the code the inputs necesary to calculate the radiation components are read from the dictionary file
     """
-    SunHours,Latitude,Doy,Albedo=fn.GetShortWaveRadiationInputs(Dictionary)
-    
+    SunHours, Latitude, Doy, Albedo = fn.GetShortWaveRadiationInputs(
+        Dictionary)
+
     """
     
     ****************************************
@@ -73,19 +74,16 @@ for inputfile in FileList[75:76]:
     ****************************************
     """
 
-    
-    N,Ra,Rs,ws=rf.CalShortWaveIncomingRadiation(SunHours,Latitude,Doy)
-    
-    
+    N, Ra, Rs, ws = rf.CalShortWaveIncomingRadiation(SunHours, Latitude, Doy)
+
     """
     ****************************************
     SHORTWAVE NET
     ****************************************
     """
 
-    RSnet=rf.CalShortWaveNetRadiation(Rs, Albedo)
-    
-    
+    RSnet = rf.CalShortWaveNetRadiation(Rs, Albedo)
+
     """
     ****************************************
     LONGWAVE INCOMING
@@ -98,23 +96,24 @@ for inputfile in FileList[75:76]:
     
     ****************************************
     """
-    LST,ObsTime,Emissivity=fn.GetLongWaveRadiationInputs(Dictionary)
-    
-    Rlw_in,Tair_MODIS_passtime=rf.CalLongWave_Incoming_Parton_Logan(LST,ObsTime,N)
+    LST, ObsTime, Emissivity = fn.GetLongWaveRadiationInputs(Dictionary)
+
+    Rlw_in, Tair_MODIS_passtime = rf.CalLongWave_Incoming_Parton_Logan(
+        LST, ObsTime, N)
     """
     ****************************************
     LONGWAVE OUTGOING
     The longwave outgoing radiation uses the mean values of emissivity from chanels 31 and 32 from MODIS.
     ****************************************
     """
-    Rlw_out=rf.CalLongWave_Outgoing(LST,Emissivity)
+    Rlw_out = rf.CalLongWave_Outgoing(LST, Emissivity)
     """
     ****************************************
     LONGWAVE NET RADIATION
     ****************************************
     """
-    RLnet=Rlw_in-Rlw_out
-    
+    RLnet = Rlw_in-Rlw_out
+
     """
     ******************************************************************************************************************************************
     ******************************************************************************************************************************************
@@ -124,23 +123,23 @@ for inputfile in FileList[75:76]:
     ******************************************************************************************************************************************
     ******************************************************************************************************************************************    
     """
-    
+
     """
     Calculates the J parameter to estimate daily/instantaneous from observations.
     """
-    t=12-(N/2)-1 #We assumed this formulation for sunrise time. Can be modified and improved
-    J=fn.calcJparameter(N,t)
+    t = 12-(N/2)-1  # We assumed this formulation for sunrise time. Can be modified and improved
+    J = fn.calcJparameter(N, t)
     """
     ****************************************
     LONGWAVE NET RADIATION DAILY
     ****************************************
     """
-    RLnet_daily=RLnet*J
-    
+    RLnet_daily = RLnet*J
+
     """
     ****************************************
     CALCULATES NET RADIATION DAILY
     ****************************************
     """
-    
-    RnDaily=RSnet+RLnet_daily
+
+    RnDaily = RSnet+RLnet_daily
