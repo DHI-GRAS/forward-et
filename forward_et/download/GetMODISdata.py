@@ -11,19 +11,19 @@ def delfilesinfolder(temporalfolder):
     import os
     filelist = [f for f in os.listdir(temporalfolder) if f.endswith(".hdf")]
     for f in filelist:
-        remf = temporalfolder+f
+        remf = temporalfolder + f
         os.remove(remf)
     filelist = [f for f in os.listdir(temporalfolder) if f.endswith(".xml")]
     for f in filelist:
-        remf = temporalfolder+f
+        remf = temporalfolder + f
         os.remove(remf)
     filelist = [f for f in os.listdir(temporalfolder) if f.endswith(".txt")]
     for f in filelist:
-        remf = temporalfolder+f
+        remf = temporalfolder + f
         os.remove(remf)
     filelist = [f for f in os.listdir(temporalfolder) if f.endswith(".tif")]
     for f in filelist:
-        remf = temporalfolder+f
+        remf = temporalfolder + f
         os.remove(remf)
     return
 # Function to download the MOD product and make the mosaic
@@ -37,15 +37,15 @@ def downloadmosaic(outfolder, temporalfolder, product, tiles, password, user, da
     year = str(date.year)
     month = date.month
     if month < 10:
-        monthstr = '0'+str(month)
+        monthstr = '0' + str(month)
     else:
         monthstr = str(month)
     day = (date.day)
     if day < 10:
-        daystr = '0'+str(day)
+        daystr = '0' + str(day)
     else:
         daystr = str(day)
-    day = year+'-'+monthstr+'-'+daystr
+    day = year + '-' + monthstr + '-' + daystr
     if (product == 'MOD09GA.006') or (product == 'MOD11A1.006'):
         path_download = 'MOLT'
         if product == 'MOD09GA.006':
@@ -83,7 +83,7 @@ def downloadmosaic(outfolder, temporalfolder, product, tiles, password, user, da
     modisDown.downloadsAllDay()
 
     # create the list of files to use
-    files = glob.glob(os.path.join(temporalfolder, product[0:7]+'*.hdf'))
+    files = glob.glob(os.path.join(temporalfolder, product[0:7] + '*.hdf'))
 
     modisParse = pymodis. parsemodis.parseModis(files[0])
     # bounding box of the tiles
@@ -92,15 +92,15 @@ def downloadmosaic(outfolder, temporalfolder, product, tiles, password, user, da
     modisMultiParse = pymodis.parsemodis.parseModisMulti(files)
     dateout = files[0]
     pos_ini = dateout.index('.A')
-    dateout = dateout[pos_ini+2:pos_ini+2+7]
+    dateout = dateout[pos_ini + 2:pos_ini + 2 + 7]
     modisMultiParse.writexml(os.path.join(
         temporalfolder, 'modismultiparse.xml'))
     from pymodis.convertmodis_gdal import createMosaicGDAL
-    output_tif = os.path.join(outfolder, product+dateout+'.mosaic.tif')
+    output_tif = os.path.join(outfolder, product + dateout + '.mosaic.tif')
 
     mosaic = createMosaicGDAL(files, subset, 'GTiff')
     mosaic.run(output_tif)
-    print('Mosaic for '+dateout+' generated!!!')
+    print('Mosaic for ' + dateout + ' generated!!!')
     return output_tif, day
 
 
@@ -125,8 +125,8 @@ def DownloadAllData(tiles, date, date_list_8days, Test, Test2, outfolder):
 def download_09Products(tiles, date, outfolder):
     import Prepare_input_data
     mrtpath = 'C:\\MRT\\'
-    outfolder = outfolder+'MOD_MYD_09\\'
-    temporalfolder = outfolder+'Temporal\\'
+    outfolder = outfolder + 'MOD_MYD_09\\'
+    temporalfolder = outfolder + 'Temporal\\'
     product_MOD = 'MOD09GA.006'
     product_MYD = 'MYD09GA.006'
     # tiles='h17v04,h17v05,h18v04,h18v05'
@@ -144,8 +144,8 @@ def download_09Products(tiles, date, outfolder):
 
 def download_11Products(tiles, date, outfolder):
     import Prepare_input_data
-    outfolder = outfolder+'MOD_MYD_11\\'
-    temporalfolder = outfolder+'Temporal\\'
+    outfolder = outfolder + 'MOD_MYD_11\\'
+    temporalfolder = outfolder + 'Temporal\\'
     product_MOD = 'MOD11A1.006'
     product_MYD = 'MYD11A1.006'
     # tiles='h17v04,h17v05,h18v04,h18v05'
@@ -163,9 +163,9 @@ def download_11Products(tiles, date, outfolder):
 
 def download_13Products(tiles, date, outfolder):
     import Prepare_input_data
-    outfolder = outfolder+'MOD_13\\'
+    outfolder = outfolder + 'MOD_13\\'
 
-    temporalfolder = outfolder+'Temporal\\'
+    temporalfolder = outfolder + 'Temporal\\'
     product_MOD = 'MOD13A2.006'
 
     # tiles='h17v04,h17v05,h18v04,h18v05'
@@ -181,8 +181,8 @@ def download_13Products(tiles, date, outfolder):
 
 def download_15Products(tiles, date, outfolder):
     import Prepare_input_data
-    outfolder = outfolder+'MCD_15\\'
-    temporalfolder = outfolder+'Temporal\\'
+    outfolder = outfolder + 'MCD_15\\'
+    temporalfolder = outfolder + 'Temporal\\'
     # temporalfolder='C:\\Temporal_Trash\\MCD18\\Temporal\\'
     product_MCD_15 = 'MCD15A2H.006'
     # tiles='h17v04,h17v05,h18v04,h18v05'
@@ -199,8 +199,8 @@ def download_15Products(tiles, date, outfolder):
 
 def download_43Products(tiles, date, outfolder):
     import Prepare_input_data
-    outfolder = outfolder+'\\MCD_43\\'
-    temporalfolder = outfolder+'Temporal\\'
+    outfolder = outfolder + '\\MCD_43\\'
+    temporalfolder = outfolder + 'Temporal\\'
     # temporalfolder='C:\\Temporal_Trash\\MCD18\\Temporal\\'
     product_MCD_43 = 'MCD43B3.005'
     Quality_product_MCD_43 = 'MCD43B2.005'
@@ -224,19 +224,19 @@ def Comp8daydate(date):
     year = str(date.year)
     month = date.month
     if month < 10:
-        monthstr = '0'+str(month)
+        monthstr = '0' + str(month)
     else:
         monthstr = str(month)
     day = (date.day)
     if day < 10:
-        daystr = '0'+str(day)
+        daystr = '0' + str(day)
     else:
         daystr = str(day)
-    day_full = year+'-'+monthstr+'-'+daystr
+    day_full = year + '-' + monthstr + '-' + daystr
 
     Jul = gcal2jd(year, 1, 1)
     JulAct = gcal2jd(year, month, day)
-    JulianDay = (JulAct[1]+1-Jul[1])
+    JulianDay = (JulAct[1] + 1 - Jul[1])
     JulDay8 = ('001', '009', '017', '025', '033', '041', '049', '057', '065', '073', '081',
                '089', '097', '105', '113', '121', '129', '137', '145', '153', '161', '169',
                '177', '185', '193', '201', '209', '217', '225', '233', '241', '249', '257',
@@ -268,7 +268,7 @@ def Comp8daydate(date):
 def DownloadPJLPT_MODISDATA(DOY, YEAR, TILE, temporalfolder, outfolder):
     delfilesinfolder(temporalfolder)
     print('Starting to gather the MODIS data to run the JPL-PT model for ' +
-          str(YEAR)+' '+str(DOY))
+          str(YEAR) + ' ' + str(DOY))
     mrtpath = 'C:\\MRT\\'  # directorio del Modis reprojection tool
     # test para comprobar que el MRT está instalado y en su sitio.
     pymodis.convertmodis.checkMRTpath(mrtpath)
@@ -278,8 +278,8 @@ def DownloadPJLPT_MODISDATA(DOY, YEAR, TILE, temporalfolder, outfolder):
     delta = 1
     year2process = YEAR
     tiles = 'h17v04,h17v05,h18v04,h18v05'
-    base = datetime.datetime(year2process, 01, 01)
+    base = datetime.datetime(year2process, 0o1, 0o1)
     temporalfolder = temporalfolder
     date_list = [base + datetime.timedelta(days=x)
-                 for x in range(DOY-1, DOY, 1)]
+                 for x in range(DOY - 1, DOY, 1)]
     return

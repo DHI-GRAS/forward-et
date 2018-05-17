@@ -70,7 +70,8 @@ meteo_an = {
               'target': "Z:\Datasets\SSRD_ERA_Iberia\solarRad_fc_xxxx.grib"
 }
 
-# forecast downward and total-clear-sky solar radiation       https://software.ecmwf.int/wiki/pages/viewpage.action?pageId=56658233
+# forecast downward and total-clear-sky solar radiation
+# https://software.ecmwf.int/wiki/pages/viewpage.action?pageId=56658233
 solarRad = {
     'dataset': "interim",
     'stream': "oper",
@@ -89,7 +90,7 @@ solarRad = {
 
 
 #retrievalPeriods = ['2011-03-28/to/2011-10-04']
-retrievalPeriods = [str(2017)+'-01-01/to/'+str(2017)+'-12-31']
+retrievalPeriods = [str(2017) + '-01-01/to/' + str(2017) + '-12-31']
 # retrieveRequests = [meteo_fc, meteo_an,solarRad]#, solarRad]
 retrieveRequests = [solarRad]  # , solarRad]
 # retrieveRequests = [meteo_fc, meteo_an]#, solarRad]
@@ -112,7 +113,7 @@ def deleteFile(path_to_file, attempts=0, timeout=100, sleep_int=2):
         try:
             os.remove(path_to_file)
             return True
-        except:
+        except BaseException:
             # perform an action
             sleep(sleep_int)
             deleteFile(path_to_file, attempts + 1)
@@ -127,12 +128,12 @@ def multiplyBy100(fileName, bandNum):
     data = BandReadAsArray(band)
 
     # The actual calculation
-    dataOut = data*100
+    dataOut = data * 100
     dataOut = dataOut.astype(int)
 
     # Write the out file
     driver = gdal.GetDriverByName("GTiff")
-    outFileName = fileName+'_m100.tif'
+    outFileName = fileName + '_m100.tif'
     dsOut = driver.Create(outFileName, ds.RasterXSize,
                           ds.RasterYSize, 1, gdal.GDT_Int16)
     CopyDatasetInfo(ds, dsOut)
@@ -155,28 +156,28 @@ def dailySSRD(fileName, bandNum):
     ds = gdal.Open(fileName, GA_ReadOnly)
     band = ds.GetRasterBand(bandNum)
     data1 = BandReadAsArray(band)
-    band = ds.GetRasterBand(bandNum+1)
+    band = ds.GetRasterBand(bandNum + 1)
     data2 = BandReadAsArray(band)
-    band = ds.GetRasterBand(bandNum+2)
+    band = ds.GetRasterBand(bandNum + 2)
     data3 = BandReadAsArray(band)
-    band = ds.GetRasterBand(bandNum+3)
+    band = ds.GetRasterBand(bandNum + 3)
     data4 = BandReadAsArray(band)
-    band = ds.GetRasterBand(bandNum+4)
+    band = ds.GetRasterBand(bandNum + 4)
     data5 = BandReadAsArray(band)
-    band = ds.GetRasterBand(bandNum+5)
+    band = ds.GetRasterBand(bandNum + 5)
     data6 = BandReadAsArray(band)
-    band = ds.GetRasterBand(bandNum+6)
+    band = ds.GetRasterBand(bandNum + 6)
     data7 = BandReadAsArray(band)
-    band = ds.GetRasterBand(bandNum+7)
+    band = ds.GetRasterBand(bandNum + 7)
     data8 = BandReadAsArray(band)
-    SSRD = (data1+data2+data3+data4+data5+data6+data7+data8)/86400
+    SSRD = (data1 + data2 + data3 + data4 + data5 + data6 + data7 + data8) / 86400
     # The actual calculation
-    dataOut = SSRD*1
+    dataOut = SSRD * 1
     dataOut = dataOut.astype(int)
 
     # Write the out file
     driver = gdal.GetDriverByName("GTiff")
-    outFileName = fileName+'_m1.tif'
+    outFileName = fileName + '_m1.tif'
     dsOut = driver.Create(outFileName, ds.RasterXSize,
                           ds.RasterYSize, 1, gdal.GDT_Float32)
     CopyDatasetInfo(ds, dsOut)
@@ -196,8 +197,8 @@ def gdal2GeoTiff_ECMWF_WGS84(filename):
     print("Translating to GeoTIFF...")
     tiff_filename_base = os.path.split(filename)[0] + os.sep
     tiff_filelist = []
-    vrtTempFile = tiff_filename_base+C_vrtTempFile
-    print vrtTempFile+'cacacac'
+    vrtTempFile = tiff_filename_base + C_vrtTempFile
+    print vrtTempFile + 'cacacac'
     d = datetime(1970, 1, 1)
 
     # Read raster bands from file
@@ -205,11 +206,11 @@ def gdal2GeoTiff_ECMWF_WGS84(filename):
     bandsNum = im.RasterCount
     srcProj = C_srcProj
 
-    for i in range(1, bandsNum+1, 8):
+    for i in range(1, bandsNum + 1, 8):
         print(str(i))
 
         # Get the band properties
-        vrtTempFile = tiff_filename_base+str(i)+C_vrtTempFile
+        vrtTempFile = tiff_filename_base + str(i) + C_vrtTempFile
         band = im.GetRasterBand(i)
         forecastSeconds = int(re.findall(
             '\d+', band.GetMetadata()['GRIB_FORECAST_SECONDS'])[0])
@@ -222,7 +223,7 @@ def gdal2GeoTiff_ECMWF_WGS84(filename):
 #        tiff_filename = os.path.join(tiff_filename_base, productName, productName+'_'+str((d + timedelta(seconds=UTCtime_delta)).year) + \
 #                        str((d + timedelta(seconds=UTCtime_delta)).timetuple().tm_yday).zfill(3) + \
 #                        str((d + timedelta(seconds=UTCtime_delta)).hour).zfill(2) + '_ECMWF.tif')
-        tiff_filename = os.path.join(tiff_filename_base, productName, productName+'_'+str((d + timedelta(seconds=UTCtime_delta)).year) +
+        tiff_filename = os.path.join(tiff_filename_base, productName, productName + '_' + str((d + timedelta(seconds=UTCtime_delta)).year) +
                                      str((d + timedelta(seconds=UTCtime_delta)).timetuple().tm_yday).zfill(3) + '_ECMWF.tif')
 
         print(str((d + timedelta(seconds=UTCtime_delta)).timetuple().tm_yday).zfill(3))
@@ -231,15 +232,15 @@ def gdal2GeoTiff_ECMWF_WGS84(filename):
         if productName == '2T':
             # Convert the band to integer to save space and save it as geotiff
             tempFile = multiplyBy100(filename, i)
-            gdalWarpCmd = C_gdalwarp+' -wm 2000 -s_srs "'+srcProj+'" -t_srs "'+dstProj+'" -tr '+dstTr+' -te '+dstTe + \
+            gdalWarpCmd = C_gdalwarp + ' -wm 2000 -s_srs "' + srcProj + '" -t_srs "' + dstProj + '" -tr ' + dstTr + ' -te ' + dstTe + \
                 ' -r cubicspline -ot Int16 -co COMPRESS=DEFLATE -co PREDICTOR=2 -co ZLEVEL=9 -overwrite ' + \
-                tempFile+' '+tiff_filename
+                tempFile + ' ' + tiff_filename
         if productName == 'SSRD':
             # Test to correct
             tempFile = dailySSRD(filename, i)
-            gdalWarpCmd = C_gdalwarp+' -wm 2000 -s_srs "'+srcProj+'" -t_srs "'+dstProj+'" -tr '+dstTr+' -te '+dstTe + \
+            gdalWarpCmd = C_gdalwarp + ' -wm 2000 -s_srs "' + srcProj + '" -t_srs "' + dstProj + '" -tr ' + dstTr + ' -te ' + dstTe + \
                 ' -r near -ot UInt32 -co COMPRESS=DEFLATE -co PREDICTOR=2 -co ZLEVEL=9 -overwrite ' + \
-                tempFile+' '+tiff_filename
+                tempFile + ' ' + tiff_filename
 
         proc = subprocess.Popen(gdalWarpCmd, shell=True, stdout=subprocess.PIPE,
                                 stdin=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=False)
@@ -261,7 +262,7 @@ if __name__ == "__main__":
     for request in retrieveRequests:
         for period in retrievalPeriods:
             request['date'] = period
-            request['target'] = request['target'][0:-9]+period[0:4]+'.grib'
+            request['target'] = request['target'][0:-9] + period[0:4] + '.grib'
             if not os.path.exists(request['target']):
                 downloadEraData(request)
                 gdal2GeoTiff_ECMWF_WGS84(request['target'])

@@ -6,7 +6,7 @@ Created on Thu Jan 25 14:00:34 2018
 """
 
 """
-This script calculates Evapotranspiration (ET) based on the PT-JPL algorithm. 
+This script calculates Evapotranspiration (ET) based on the PT-JPL algorithm.
 The input dataset to obtain ET was created on a combination of two different datasets, DASEMON and MODIS.
 This script reads a daily input dictionary that contains all required inputs.
 
@@ -20,15 +20,15 @@ To access those functions we need to import the modules.
 import Functions
 import Radiation_Functions
 To make the name shorter in the code when we call the functions we can import the modules followed by "as" :
-    
+
 import Functions as fn
-import Radiation_Functions as rf 
+import Radiation_Functions as rf
 
 This way we can called the functions in the scripts by typing:
 
 Example:
     N,Ra,Rs,ws=rf.CalShortWaveIncomingRadiation(SunHours,Latitude,Doy) instead of
-    
+
     N,Ra,Rs,ws=Radiation_Functions.CalShortWaveIncomingRadiation(SunHours,Latitude,Doy)
 """
 import Functions as fn
@@ -51,7 +51,7 @@ And the line gets something like this.
 FileList=glob.glob(InputsFolder+'*.pkl')
 """
 InputsFolder = 'F:\\Dictionaries\\'
-FileList = glob.glob(InputsFolder+'*.pkl')
+FileList = glob.glob(InputsFolder + '*.pkl')
 for inputfile in FileList[75:76]:
     Dictionary = fn.OpenDictionay(inputfile)
     """
@@ -62,11 +62,11 @@ for inputfile in FileList[75:76]:
         Dictionary)
 
     """
-    
+
     ****************************************
     SHORTWAVE INCOMING
-    
-    
+
+
     Please read the pages 41 to 51 from the FAO Irrigation and Drainage paper No. 56.
     You can get the pdf document in this website: http://academic.uprm.edu/abe/backup2/tomas/fao%2056.pdf
     In those pages there is a detail description of how to calculate the SWIn raditation and the equations that
@@ -92,8 +92,8 @@ for inputfile in FileList[75:76]:
     at MODIS overpass time. We've done this step already for you, and are included as two numpy arrays called:
         YearMaxTemp.npy  and  YearMinTemp.npy
     Both arrays contain the temperature in Celsius degress. Therefore they must be converted to Kelvin.
-    
-    
+
+
     ****************************************
     """
     LST, ObsTime, Emissivity = fn.GetLongWaveRadiationInputs(Dictionary)
@@ -112,7 +112,7 @@ for inputfile in FileList[75:76]:
     LONGWAVE NET RADIATION
     ****************************************
     """
-    RLnet = Rlw_in-Rlw_out
+    RLnet = Rlw_in - Rlw_out
 
     """
     ******************************************************************************************************************************************
@@ -121,20 +121,20 @@ for inputfile in FileList[75:76]:
     NOTICE THAT LONGWAVE INCOMING RADIATION IS INSTANTANEOUS NOT DAILY AND DEREFORE IT HAS TO BE CONVERTED TO GET EVERYTHING IN THE SAME UNITS
     ******************************************************************************************************************************************
     ******************************************************************************************************************************************
-    ******************************************************************************************************************************************    
+    ******************************************************************************************************************************************
     """
 
     """
     Calculates the J parameter to estimate daily/instantaneous from observations.
     """
-    t = 12-(N/2)-1  # We assumed this formulation for sunrise time. Can be modified and improved
+    t = 12 - (N / 2) - 1  # We assumed this formulation for sunrise time. Can be modified and improved
     J = fn.calcJparameter(N, t)
     """
     ****************************************
     LONGWAVE NET RADIATION DAILY
     ****************************************
     """
-    RLnet_daily = RLnet*J
+    RLnet_daily = RLnet * J
 
     """
     ****************************************
@@ -142,4 +142,4 @@ for inputfile in FileList[75:76]:
     ****************************************
     """
 
-    RnDaily = RSnet+RLnet_daily
+    RnDaily = RSnet + RLnet_daily

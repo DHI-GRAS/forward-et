@@ -18,20 +18,20 @@ def JulDay_JulDay8fromDate(date):
     year = str(date.year)
     month = date.month
     if month < 10:
-        monthstr = '0'+str(month)
+        monthstr = '0' + str(month)
     else:
         monthstr = str(month)
 
     day = (date.day)
     if day < 10:
-        daystr = '0'+str(day)
+        daystr = '0' + str(day)
     else:
         daystr = str(day)
-    day_full = year+'-'+monthstr+'-'+daystr
+    day_full = year + '-' + monthstr + '-' + daystr
 
     Jul = gcal2jd(year, 1, 1)
     JulAct = gcal2jd(year, month, day)
-    JulianDay = (JulAct[1]+1-Jul[1])
+    JulianDay = (JulAct[1] + 1 - Jul[1])
     JulDay8 = ('001', '009', '017', '025', '033', '041', '049', '057', '065', '073', '081',
                '089', '097', '105', '113', '121', '129', '137', '145', '153', '161', '169',
                '177', '185', '193', '201', '209', '217', '225', '233', '241', '249', '257',
@@ -63,19 +63,19 @@ def JulDay_JulDay16fromDate(date):
     year = str(date.year)
     month = date.month
     if month < 10:
-        monthstr = '0'+str(month)
+        monthstr = '0' + str(month)
     else:
         monthstr = str(month)
     day = (date.day)
     if day < 10:
-        daystr = '0'+str(day)
+        daystr = '0' + str(day)
     else:
         daystr = str(day)
-    day_full = year+'-'+monthstr+'-'+daystr
+    day_full = year + '-' + monthstr + '-' + daystr
 
     Jul = gcal2jd(year, 1, 1)
     JulAct = gcal2jd(year, month, day)
-    JulianDay = (JulAct[1]+1-Jul[1])
+    JulianDay = (JulAct[1] + 1 - Jul[1])
     JulDay16 = ('001', '017', '033', '049', '065', '081',
                 '097', '113', '129', '145', '161', '177',
                 '193', '209', '225', '241', '257', '273',

@@ -52,14 +52,14 @@ def reprojectSubsettif(inputimage, outputDir, referenceMetadata):
         UL = [gt[0], gt[3]]
         xsizeModis = xsize
         ysizeModis = ysize
-        BR = [UL[0] + xsizeModis*pixSizeModis[0],
-              UL[1] - ysizeModis*pixSizeModis[1]]
+        BR = [UL[0] + xsizeModis * pixSizeModis[0],
+              UL[1] - ysizeModis * pixSizeModis[1]]
         file_name = os.path.basename(inputimage)
 
-        outputImagePath = outputDir+file_name
+        outputImagePath = outputDir + file_name
 
-        gdalCommand = C_gdalwarp+' -r near -t_srs '+str(proj)+' -te '+str(UL[0])+' '+str(BR[1])+' '+str(BR[0])+' '+str(
-            UL[1])+' -tr '+str(pixSizeModis[0])+' '+str(pixSizeModis[1])+' -overwrite '+inputimage+' '+outputImagePath
+        gdalCommand = C_gdalwarp + ' -r near -t_srs ' + str(proj) + ' -te ' + str(UL[0]) + ' ' + str(BR[1]) + ' ' + str(BR[0]) + ' ' + str(
+            UL[1]) + ' -tr ' + str(pixSizeModis[0]) + ' ' + str(pixSizeModis[1]) + ' -overwrite ' + inputimage + ' ' + outputImagePath
         proc = subprocess.Popen(gdalCommand, shell=True, stdout=subprocess.PIPE,
                                 stdin=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=False)
         for line in iter(proc.stdout.readline, ""):

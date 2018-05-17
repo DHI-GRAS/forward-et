@@ -17,7 +17,7 @@ reference_Image = 'N:\\DASEMON\\DEM\\SRTM_DASEMON_1100m.tif'
 # reference_Image='C:\\Procesos\\Andalucia\\AndaluciaRef.tif'
 reference_metadata = getSceneMetadata(reference_Image)
 year2process = 2008
-base = datetime.datetime(year2process, 01, 01)
+base = datetime.datetime(year2process, 0o1, 0o1)
 date_list = [base + datetime.timedelta(days=x) for x in range(0, 366, 1)]
 date_list_8days = [base + datetime.timedelta(days=x) for x in range(0, 366, 8)]
 tiles = 'h17v04,h17v05,h18v04,h18v05'
@@ -59,31 +59,31 @@ for date in date_list:
         JulDay = int(JulianDay)
         if int(JulDay) < 100:
             if int(JulDay) < 10:
-                strJulDay = '00'+str(JulDay)
+                strJulDay = '00' + str(JulDay)
             else:
-                strJulDay = '0'+str(JulDay)
+                strJulDay = '0' + str(JulDay)
         else:
             strJulDay = str(JulDay)
         Dictionary = Prepare_input_data.CleanDictionary4Students(Dictionary)
-        Name_dictionary = DictionaryFolder+'DailyDataset_julianDay_' + \
-            strJulDay+'_Year_'+str(year2process)+'.pkl'
+        Name_dictionary = DictionaryFolder + 'DailyDataset_julianDay_' + \
+            strJulDay + '_Year_' + str(year2process) + '.pkl'
         f = open(Name_dictionary, 'wb')
         pickle.dump(Dictionary, f)
         f.close()
-        print(Name_dictionary+' has been created')
-    except:
+        print(Name_dictionary + ' has been created')
+    except BaseException:
         year = str(date.year)
         month = date.month
         if month < 10:
-            monthstr = '0'+str(month)
+            monthstr = '0' + str(month)
         else:
             monthstr = str(month)
 
         day = (date.day)
         if day < 10:
-            daystr = '0'+str(day)
+            daystr = '0' + str(day)
         else:
             daystr = str(day)
-        day_full = year+'-'+monthstr+'-'+daystr
+        day_full = year + '-' + monthstr + '-' + daystr
         JulianDay, JulDay8 = Functions_PT_JPL.JulDay_JulDay8fromDate(date)
-        day_full = day_full+'_Julday'+str(JulianDay)
+        day_full = day_full + '_Julday' + str(JulianDay)

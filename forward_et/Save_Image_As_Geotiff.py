@@ -43,7 +43,7 @@ def Save_array_tiff(array, outputfile, proj, geotransform):
 
         for i in range(shape[2]):
             print(i)
-            ds.GetRasterBand(i+1).WriteArray(array[:, :, i])
+            ds.GetRasterBand(i + 1).WriteArray(array[:, :, i])
 
     else:
         ds = driver.Create(outputfile, shape[1], shape[0], 1, gdal.GDT_Float32)
@@ -61,7 +61,7 @@ def Save_array_tiff(array, outputfile, proj, geotransform):
 def SaveRn_Image(Array):
     import os
     folder = (os.path.dirname(os.path.realpath(__file__)))
-    ReferenceIMage = folder+'\\Data\\AndaluciaCoordinates'
+    ReferenceIMage = folder + '\\Data\\AndaluciaCoordinates'
     outputfile = folder + '\\OutPutImage\\Rn_Andalucia_All.tif'
     referenceMetadata = getSceneMetadata(ReferenceIMage)
     proj = referenceMetadata.get('proj')
@@ -73,7 +73,7 @@ def SaveRn_Image(Array):
 def SaveCanopyTransT_Image(Array):
     import os
     folder = (os.path.dirname(os.path.realpath(__file__)))
-    ReferenceIMage = folder+'\\Data\\AndaluciaCoordinates'
+    ReferenceIMage = folder + '\\Data\\AndaluciaCoordinates'
     outputfile = folder + '\\OutPutImage\\CanopyTrans_Andalucia_All.tif'
     referenceMetadata = getSceneMetadata(ReferenceIMage)
     proj = referenceMetadata.get('proj')
@@ -85,7 +85,7 @@ def SaveCanopyTransT_Image(Array):
 def SaveSoilEva_Image(Array):
     import os
     folder = (os.path.dirname(os.path.realpath(__file__)))
-    ReferenceIMage = folder+'\\Data\\AndaluciaCoordinates'
+    ReferenceIMage = folder + '\\Data\\AndaluciaCoordinates'
     outputfile = folder + '\\OutPutImage\\SoilEva_Andalucia_All.tif'
     referenceMetadata = getSceneMetadata(ReferenceIMage)
     proj = referenceMetadata.get('proj')
@@ -97,7 +97,7 @@ def SaveSoilEva_Image(Array):
 def SavePotEvapotrans_Image(Array):
     import os
     folder = (os.path.dirname(os.path.realpath(__file__)))
-    ReferenceIMage = folder+'\\Data\\AndaluciaCoordinates'
+    ReferenceIMage = folder + '\\Data\\AndaluciaCoordinates'
     outputfile = folder + '\\OutPutImage\\PotEvapotrans_Andalucia_All.tif'
     referenceMetadata = getSceneMetadata(ReferenceIMage)
     proj = referenceMetadata.get('proj')
@@ -109,7 +109,7 @@ def SavePotEvapotrans_Image(Array):
 def SaveActCanopyTransT_Image(Array):
     import os
     folder = (os.path.dirname(os.path.realpath(__file__)))
-    ReferenceIMage = folder+'\\Data\\AndaluciaCoordinates'
+    ReferenceIMage = folder + '\\Data\\AndaluciaCoordinates'
     outputfile = folder + '\\OutPutImage\\ActCanopyTrans_Andalucia_All.tif'
     referenceMetadata = getSceneMetadata(ReferenceIMage)
     proj = referenceMetadata.get('proj')
@@ -121,7 +121,7 @@ def SaveActCanopyTransT_Image(Array):
 def SaveActSoilEva_Image(Array):
     import os
     folder = (os.path.dirname(os.path.realpath(__file__)))
-    ReferenceIMage = folder+'\\Data\\AndaluciaCoordinates'
+    ReferenceIMage = folder + '\\Data\\AndaluciaCoordinates'
     outputfile = folder + '\\OutPutImage\\ActSoilEva_Andalucia_All.tif'
     referenceMetadata = getSceneMetadata(ReferenceIMage)
     proj = referenceMetadata.get('proj')
@@ -133,7 +133,7 @@ def SaveActSoilEva_Image(Array):
 def SaveActEvapotrans_Image(Array):
     import os
     folder = (os.path.dirname(os.path.realpath(__file__)))
-    ReferenceIMage = folder+'\\Data\\AndaluciaCoordinates'
+    ReferenceIMage = folder + '\\Data\\AndaluciaCoordinates'
     outputfile = folder + '\\OutPutImage\\ActEvapotrans_Andalucia_All.tif'
     referenceMetadata = getSceneMetadata(ReferenceIMage)
     proj = referenceMetadata.get('proj')
