@@ -38,6 +38,11 @@ function reprojMODIS(image) {
   image.get('system:time_start'));
 }
 
+//This function merges bands from multiply collections
+function merge_bands(element) {
+  return ee.Image.cat(element.get('primary'), element.get('secondary'));
+}
+
 // helper function to extract the QA bits
 function getQABits(image, start, end, newName) {
     // Compute the bits we need to extract.
@@ -186,7 +191,8 @@ function maskTEcomposite(image) {
                       .add(ee.Image((image.select('Day_view_angle_aqua').subtract(image.select('Day_view_angle_terra'))).gte(0).multiply(image.select('Emis_32_terra'))))))
                       .multiply(0.002).rename('EMIS32_comp');
   var EMIS_composite = EMIS31_composite.add(EMIS32_composite).divide(2).multiply(10).rename('EMIS_comp');
-  return image.addBands(LST_mask).addBands(LST_composite).addBands(DVT_composite).addBands(EMIS_composite);
+  return image.addBands(LST_mask).addBands(LST_composite)
+              .addBands(DVT_composite.updateMask(DVT_composite.neq(0).and(DVT_composite.lte(24)))).addBands(EMIS_composite);
 }
 
 //**************************************************
@@ -302,42 +308,78 @@ function calc_ShortWaveRadiation(image) {
 
 //rf.CalLongWave_Incoming_Parton_Logan
 function calc_LongWaveRadiation(image) {
-  var LST = image.select('LST_comp');
-  var ObsTime = image.select('DVT_comp');
-  var Emissivity = image.select('EMIS_comp');
-  var N = image.select('N');
-  var AirMax = image.select('TMAX');
-  var AirMin = image.select('TMIN');
+  var fimage = image.select(['LST_comp', 'DVT_comp', 'EMIS_comp',
+                              'N', 'TMAX', 'TMIN', 'Sunrise', 'RSnet'])
+  //c refers to lag of the minimum temperature from the time of sunrise,(parameter
+  // following table 1, p.210)
+  var c1 = ee.Image(-0.17);
+  //d refers to a in Parton and Logan, (parameter following table 1, p.210)
+  var d1 = ee.Image(1.86).rename('d1');
+  var fimage = fimage.addBands(d1);
+  //BB = 12 - (N / 2) + c1
+  var BB = ee.Image(12).subtract(fimage.select('N').divide(2)).add(c1);
+  //BBD, number of hours after the minimum temperature occcurs until sunset
+  var BBD = fimage.select('DVT_comp').subtract(BB).rename('BBD');
+  var fimage = fimage.addBands(BBD);
+  //Tair_MODIS_passtime = (AirMax - AirMin) * np.sin((np.pi * BBD) / (N + 2 * d1)) + AirMin
+  var Tair_MODIS_passtime = fimage.expression(
+        '(AirMax - AirMin) * sin((pi * BBD) / (N + 2 * d1)) + AirMin ', {
+        'AirMax': fimage.select('TMAX'),
+        'AirMin': fimage.select('TMIN'),
+        'BBD': fimage.select('BBD'),
+        'N': fimage.select('N'),
+        'd1': fimage.select('d1'),
+        'pi': Math.PI
+  }).rename('Tair_MODIS_passtime');
+  var fimage = fimage.addBands(Tair_MODIS_passtime);
+  //Calculating incoming longwave radiation
+  var Stef = ee.Image(5.67e-008).rename('Stef');
+  var C = ee.Image(0.261).rename('C');
+  var d = ee.Image(7.77e-004).rename('d');
+  var fimage = fimage.addBands(Stef).addBands(C).addBands(d);
+  //EmissivityAir = 1 - C * np.exp(-d * (Tair_MODIS_passtime - 273.15)**2)
+  var EmissivityAir = fimage.expression(
+        '1 - C * exp( -d * (Tair_MODIS_passtime - 273.15)**2)', {
+        'C': fimage.select('C'),
+        'd': fimage.select('d'),
+        'Tair_MODIS_passtime': fimage.select('Tair_MODIS_passtime')
+  }).rename('EmissivityAir');
+  var fimage = fimage.addBands(EmissivityAir);
+  //Rlw_in = Stef * (EmissivityAir) * (Tair_MODIS_passtime**4)
+  var Rlw_in = fimage.expression(
+        'Stef * (EmissivityAir) * (Tair_MODIS_passtime**4)', {
+        'Stef': fimage.select('Stef'),
+        'EmissivityAir': fimage.select('EmissivityAir'),
+        'Tair_MODIS_passtime': fimage.select('Tair_MODIS_passtime')
+  }).rename('Rlw_in');
 
-  var Sunrise = image.select('Sunrise');
-  var RSnet = image.select('RSnet');
-
-  var c1 = -0.17;
-  var d1 = 1.86;
-  var BB = ee.Image(12).subtract(N.divide(2)).add(c1);
-  var BBD = ObsTime.subtract(BB);
-  var Tair_passtime = (AirMax.subtract(AirMin))
-                      .multiply((ee.Image(Math.PI).multiply(BBD)
-                      .divide((ee.Image(d1).multiply(2).add(N)))).sin())
-                      .add(AirMin).rename('Tair_passtime');
-  var Stef = 5.67e-008;
-  var C = 0.261;
-  var d = 7.77e-004;
-  var EmissivityAir = (Tair_passtime.subtract(273.15)).pow(ee.Image.constant(2))
-                      .multiply(ee.Image(d).multiply(-1)).exp().multiply(ee.Image(C).multiply(-1)).add(1);
-  var Rlw_in = Tair_passtime.pow(ee.Image.constant(4)).multiply(EmissivityAir).multiply(Stef).rename('Rlw_in');
-  var Rlw_out = LST.pow(4).multiply(Emissivity).multiply(Stef).rename('Rlw_out');
-
+  //CalLongWave_Outgoing
+  //Rlw_out = Stef * (Emissivity) * (LST**4)
+  var Rlw_out = fimage.expression(
+        'Stef * (Emissivity) * (LST**4)', {
+        'Stef': fimage.select('Stef'),
+        'Emissivity': fimage.select('EMIS_comp'),
+        'LST': fimage.select('LST_comp')
+  }).rename('Rlw_out');
+  //PTJPL_EVAPOTRANSPIRATION.py line 51-52
   var RLnet = Rlw_in.subtract(Rlw_out);
-
-  var t = ObsTime.subtract(Sunrise).rename('t');
-
-  var J = N.multiply(2).divide(t.multiply(Math.PI).divide(N).cos().multiply(24));
-  var RSnetInstant = RSnet.divide(J);
+  var t = fimage.select('DVT_comp').subtract(fimage.select('Sunrise')).rename('t');
+  var fimage = fimage.addBands(t);
+  //fn.calcJparameter
+  //J = (2 * N) / (np.pi * np.sin((np.pi * t) / N) * 24)
+  var J = fimage.expression(
+        '(2 * N) / (pi * sin((pi * t) / N) * 24)', {
+        'N': fimage.select('N'),
+        't': fimage.select('t'),
+        'pi': Math.PI
+  });
+  //PTJPL_EVAPOTRANSPIRATION.py line 54-55
+  var RSnetInstant = fimage.select('RSnet').divide(J);
   var RnDaily = (RSnetInstant.add(RLnet)).multiply(J).rename('RnDaily');
-  return image.addBands(RnDaily).addBands(Tair_passtime);
+  return image.addBands(RnDaily).addBands(Tair_MODIS_passtime);
 }
-
+//fn.GetLAI
+//fn.GetMeanTemperature
 //rf.SplitRn_SOIL_CANOPY
 function split_cannopy(image) {
   var kRn = 0.6;
@@ -348,50 +390,75 @@ function split_cannopy(image) {
 
   return image.addBands(Rn_SOIL).addBands(Rn_Canopy);
 }
-
+//This function gives PET following PTJPL_EVAPOTRANSPIRATION.py line 60-66
 function PET(image) {
   var Tmean = image.select('Tmean');
   var RnCanopy = image.select('Rn_Canopy');
   var Rn_SOIL = image.select('Rn_SOIL');
-  //DEM to be changed later
+  //TODO: DEM to be changed later
   var Altitude = ee.Image(1);
 
-  //calPsycometricConstant
-  var P = ee.Image(101.3).multiply(((ee.Image(293).subtract(ee.Image(0.0065).multiply(Altitude)))
-          .divide(293)).pow(ee.Image.constant(5.26)));
+  //PotET.calPsycometricConstant
+  //P = 101.3 * (((293 - 0.0065 * ASL_Altitude_m) / 293)**5.26)
+  //unit is (kPa)
+  var P = image.expression(
+        '101.3 * (((293 - 0.0065 * ASL_Altitude_m) / 293)**5.26)', {
+        'ASL_Altitude_m': Altitude
+  });
+  // Latent Heat of Vaporization (lambda)
+  //Lambda = 2454 - 2.4 * (Tmean - 20)
   var Lambda = ee.Image(2454).subtract(ee.Image(2.4).multiply(Tmean.subtract(20)));
+  // Specific heat of moist air (cp)
+  // Unit (kJ kg-1 ºC-1)
   var cp = 1013;
+  //Ratio molecular weight of water vapour/dray air
   var epsi = 0.622;
+  //Psychrometric constant (psi)
+  //Unit (Pa)
   var psi = (P.multiply(cp)).divide(Lambda.multiply(epsi));
 
-  //calSatVapPres
+  //PotET.calSatVapPres
   //es = 10 * (0.061121 * 2.718281828**(17.502 * Tmean / (240.97 + Tmean))
   //               * (1.0007 + (3.46 * 10**(-8) * 100)))
-  var es = ee.Image(10).multiply(ee.Image(0.061121)
-            .multiply(ee.Image(2.718281828).pow(Tmean.multiply(17.502).divide(Tmean.add(240.97))))
-            .multiply((ee.Image(3.46).multiply(ee.Image(10).pow(-8)).multiply(100)).add(1.0007)))
+  var es = image.expression(
+        '10 * (0.061121 * 2.718281828**(17.502 * Tmean / (240.97 + Tmean)) * (1.0007 + (3.46 * 10**(-8) * 100)))', {
+        'Tmean': Tmean
+  });
 
-  //calSlopVapPresCurv
-  var s = (Lambda.multiply(18).multiply(1000).multiply(es))
-          .divide(ee.Image(8.3144).multiply(Tmean.add(273).pow(2)));
+  //PotET.calSlopVapPresCurv
+  //Slope vapour Pressure curve (s)
+  //s = (Lambda * 18 * 1000 * es) / (8.3144 * (Tmean + 273)**2)
+  var s = image.expression(
+        '(Lambda * 18 * 1000 * es) / (8.3144 * (Tmean + 273)**2)', {
+        'Lambda': Lambda,
+        'es': es,
+        'Tmean': Tmean
+  });
 
-  //calPotET_CANOPY
+  //PotET.calPotET_CANOPY
+  //Results canopy potential evapotranspiration Etpc % Following Pristley Taylor (1972)(eq 14)
   //TODO: Check whether s changed: Etpc = alphaPT * (s / (s + psi)) * RnCanopy
-  var alphaPT = 1.26;
-  var Etpc = ee.Image(alphaPT).multiply(s.divide(s.add(psi))).multiply(RnCanopy);
+  //ANSWER: s doesn't change, remove TODO comment PLEASE
+  var alphaPT = ee.Image(1.26);
+  //Etpc = alphaPT * (s / (s + psi)) * RnCanopy
+  //Unit (Wm-2)
+  var Etpc = image.expression(
+        'alphaPT * (s / (s + psi)) * RnCanopy', {
+        'alphaPT': alphaPT,
+        's': s,
+        'psi': psi,
+        'RnCanopy': RnCanopy
+  });
 
-  //calPotET_SOIL
+  //PotET.calPotET_SOIL
   var G = 0;
+  //Etps = alphaPT * (s / (s + psi)) * (Rn_SOIL - G)
   var Etps = ee.Image(alphaPT).multiply(s.divide(s.add(psi))).multiply(Rn_SOIL.subtract(G));
 
   //PET
-  PotEVTR = Etpc.add(Etps).rename('PET');
+  var PotEVTR = Etpc.add(Etps).rename('PET');
 
   return image.addBands(PotEVTR);
-}
-
-function merge_bands(element) {
-  return ee.Image.cat(element.get('primary'), element.get('secondary'));
 }
 
 // Define the join and filter
@@ -424,8 +491,21 @@ var PotEVTR = FinalDataset.map(calc_albedo).select('Albedo','Lai', 'EMIS_comp', 
             .map(split_cannopy)
             .map(PET);
 print (PotEVTR);
+
+
 var disp = PotEVTR.select('PET').mean().clip(framed);
 Map.addLayer(disp, {min:0, max: 1000}, 'PET');
+
+// Simple export to Google Drive
+Export.image.toDrive({
+  image: disp,
+  description: 'FORWARD-ET_tester',
+  folder: 'FORWARD-ET',
+  scale: 1000,
+  region: framed.geometry().bounds(),
+  maxPixels: 24818397458,
+  crs:'EPSG:4326'
+});
 
 // var disp = TE_Joined.select('LST_Day_1km_aqua').mean().clip(framed);
 // Map.addLayer(disp, {min:270, max: 300}, 'lst');
