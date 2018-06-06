@@ -1,22 +1,14 @@
 # -*- coding: utf-8 -*-
-"""
-Created on Wed Nov 08 09:19:12 2017
-
-@author: gmgo
-"""
-#
+import numpy as np
 
 
 def calcJparameter(N, t):
-    import numpy as np
     J = (2 * N) / (np.pi * np.sin((np.pi * t) / N) * 24)
 
     return J
 
 
 def calDailySolarIrradiance(Lat, lon, doy, In):
-    import numpy as np
-
     # In-> is the insolation in hours obtained from Vicente Serrano Dataset
     """------------------Parameters---------------
     factors for interception of solar radiation by aerosols and clouds"""
@@ -44,7 +36,6 @@ def calDailySolarIrradiance(Lat, lon, doy, In):
 
 
 def calculateRLDownInstIDsoandJackson(LST, Tmax, Tmin, latitude, longitude, year, step):
-    import numpy as np
     LST = LST
     sigma = 5.67e-8  # Stefan Boltzman
     c1 = 0.261  # constant
@@ -93,7 +84,6 @@ def OutLongwaveRadiationInst(LST, Reflectance_b1, Reflectance_b2):
     """This function computes the longwave outcoming radiation at the overpass time
     of the sensor. It computes the NDVI and uses it to calculate the emissivity of the pixels
     """
-    import numpy as np
     sigma = 5.67e-8  # Stefan Boltzman
     NDVI = (Reflectance_b2 - Reflectance_b1) / (Reflectance_b2 + Reflectance_b1)
     # Reescales the NDVI into emissivity assuming a linear relationship
@@ -130,6 +120,7 @@ def splitNetRadiationCanopySoil(Rn, LAI):
     # NET RADIATION TO THE CANOPY
     RnC = Rn - RnS
     return RnC, RnS
+
 
 # def calculateRLDownInstIDsoandJackson_Using_NOAA(Tmax,Tmin,latitude, longitude,year,step):
 #    import noaa
