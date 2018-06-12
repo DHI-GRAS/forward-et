@@ -1,5 +1,9 @@
-var getCollection = function(){
+//A pre-defined area
+var framed = ee.FeatureCollection('ft:1uZ5LdtjfS6fcrCpiKJw9vko91P6do30nFtt2FNp2', 'geometry');
+//Map.addLayer(framed, {color: '800080'},'frame');
+Map.centerObject(framed,4);
 
+var getCollection = function(){
   //define variable
   var startYear = 2003;
   var endYear = 2003;
@@ -68,9 +72,6 @@ var buildAndExportComposite = function() {
   panelException.clear();
   var collection = getCollection();
   //define a test area
-  var framed = ee.FeatureCollection('ft:1uZ5LdtjfS6fcrCpiKJw9vko91P6do30nFtt2FNp2', 'geometry');
-  //Map.addLayer(framed, {color: '800080'},'frame');
-  Map.centerObject(framed,4);
   var composite = collection.select('PET').mean().clip(framed);
   addCompositeToMapAndExport(composite);
 };
@@ -88,6 +89,16 @@ var addCompositeToMapAndExport = function(composite){
   // add new layer to map
   Map.add(compositeLayer);
 
+  // Simple export to Google Drive
+  Export.image.toDrive({
+    image: composite,
+    description: 'FORWARD-ET_tester',
+    folder: 'FORWARD-ET',
+    scale: 1000,
+    region: framed.geometry().bounds(),
+    maxPixels: 2e12,
+    crs:'EPSG:4326'
+  });
 
 };
 
