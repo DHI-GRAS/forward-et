@@ -1,14 +1,8 @@
 # -*- coding: utf-8 -*-
-"""
-Created on Thu Jan 25 15:08:16 2018
-
-@author: gmgo
-"""
+import numpy as np
 
 
 def CalShortWaveIncomingRadiation(SunHours, Latitude, Doy):
-    import numpy as np
-    from matplotlib import pyplot as plt
 
     """------------------Parameters---------------
     factors for interception of solar radiation by aerosols and clouds
@@ -30,23 +24,18 @@ def CalShortWaveIncomingRadiation(SunHours, Latitude, Doy):
     Ra = (((24 * 60) / np.pi) * 0.0820) * dr * ((ws * np.sin(latRad) * np.sin(delta)) +
                                                 (np.cos(latRad) * np.cos(delta) * np.sin(ws)))  # Mjm2day-1
     Rs = Ra * (AS + (BS * SunHours / N))  # Shortwave Incoming radiation
-
     return N, Ra, Rs, ws
 
 
 def CalShortWaveNetRadiation(Rs, Albedo):
-    from matplotlib import pyplot as plt
     # RRsSwD is the previously calculated Incoming Shortwave radiation
     # Albedo is the albedo obtained from MODIS.
     RSnet = Rs * (1 - Albedo)
     RSnet = RSnet * 11.574  # Converts the units into W/m2
-
     return RSnet
 
 
 def CalLongWave_Incoming_Parton_Logan(LST, ObsTime, N, AirMax, AirMin):
-    import numpy as np
-    import os
     # c= lag of the minimum temperature from the time of sunrise,(parameter
     # following table 1, p.210)
     c1 = -0.17
@@ -67,16 +56,13 @@ def CalLongWave_Incoming_Parton_Logan(LST, ObsTime, N, AirMax, AirMin):
     d = 7.77e-004
     EmissivityAir = 1 - C * np.exp(-d * (Tair_MODIS_passtime - 273.15)**2)
     Rlw_in = Stef * (EmissivityAir) * (Tair_MODIS_passtime**4)
-
     return Rlw_in, Tair_MODIS_passtime
 
 
 def CalLongWave_Outgoing(LST, Emissivity):
-    import numpy as np
     Stef = 5.67e-008
     LST = np.float64(LST)
     Rlw_out = Stef * (Emissivity) * (LST**4)
-
     return Rlw_out
 
 
@@ -85,5 +71,4 @@ def SplitRn_SOIL_CANOPY(Rn, LAI, kRn):
     Rn_SOIL = Rn * np.exp(-kRn - LAI)
     Rn_SOIL[np.isnan(Rn)] = np.nan
     Rn_Canopy = Rn - Rn_SOIL
-
     return Rn_SOIL, Rn_Canopy
