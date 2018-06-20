@@ -1,16 +1,29 @@
+//**************************************************
+// (S_0) Definition of inputs as global variables
+//**************************************************
+
+// Coordinates of points to build extent
+var I_minX, I_maxX, I_minY, I_maxY;
+
+// Extent
+var I_clip;
+
+//Study period
+var I_startDate, I_endDate;
+
 //A pre-defined area
 var framed = ee.FeatureCollection('ft:1uZ5LdtjfS6fcrCpiKJw9vko91P6do30nFtt2FNp2', 'geometry');
-//Map.addLayer(framed, {color: '800080'},'frame');
-Map.centerObject(framed,4);
+
+Map.setCenter(20, 5, 9);
+Map.setOptions('Hybrid');
+Map.setZoom(2);
+
 
 var getCollection = function(){
   //define variable
-  var startYear = 2003;
-  var endYear = 2003;
-  var startDay = '-01-01';
-  var endDay = '-01-02';
-  var startDate = ee.Date(ee.String(ee.Number(startYear).toInt()).cat(startDay));
-  var endDate = ee.Date(ee.String(ee.Number(endYear).toInt()).cat(endDay));
+  var startDate = ee.String(I_startDate);
+  var endDate = ee.String(I_endDate);
+
 
   var I_sr = ['state_1km', 'SensorZenith', 'sur_refl_b01', 'sur_refl_b02']
   var I_te = ['LST_Day_1km', 'QC_Day', 'Day_view_time', 'Day_view_angle',
@@ -33,7 +46,6 @@ var getCollection = function(){
       MODIS_BRDFA = ee.ImageCollection("MODIS/006/MCD43A3")
           .filterDate(startDate, endDate).map(reprojMODIS).select(I_albedo).map(maskALBEDO);
 
-  print(MODIS_TE_TERRA);
 
   // Define the join and filter
   var Join = ee.Join.inner();
@@ -44,16 +56,13 @@ var getCollection = function(){
 
   var TE_Joined = ee.ImageCollection(Join.apply(MODIS_TE_TERRA, MODIS_TE_AQUA, FilterOnStartTime)).map(merge_bands).map(maskTEcomposite);
 
-  print (TE_Joined);
 
   // Join the collections, passing entries through the filter
   var AL_Joined = ee.ImageCollection(Join.apply(MODIS_BRDFA, MODIS_LAIFPAR, FilterOnStartTime)).map(merge_bands);
 
-  print (AL_Joined);
 
   var FinalDataset = ee.ImageCollection(Join.apply(AL_Joined, TE_Joined, FilterOnStartTime)).map(merge_bands);
 
-  print (FinalDataset);
 
   var PotEVTR = FinalDataset.map(calc_albedo).select('Albedo','Lai', 'EMIS_comp', 'LST_comp', 'DVT_comp', 'MASK_comp')
               .map(get_SWR_inputs)
@@ -70,9 +79,26 @@ var getCollection = function(){
 var buildAndExportComposite = function() {
   // clear exceptions from previous run
   panelException.clear();
+
+  //-------------------------------
+  // read user Inputs from Graphical User Interface
+
+  //Area of interest (rectangle)
+  I_minX = parseFloat(xMinTextbox.getValue());   // parseFloat converts string to number
+  I_maxX = parseFloat(xMaxTextbox.getValue());
+  I_minY = parseFloat(yMinTextbox.getValue());
+  I_maxY = parseFloat(yMaxTextbox.getValue());
+
+  handleNoGeometryExcpetion();
+
+  I_clip = ee.Geometry.Rectangle(I_minX, I_minY, I_maxX, I_maxY);
+
+  I_startDate = I_startDateTexbox.getValue();
+  I_endDate = I_endDateTexbox.getValue();
+
   var collection = getCollection();
   //define a test area
-  var composite = collection.select('PET').mean().clip(framed);
+  var composite = collection.select('PET').mean().clip(I_clip);
   addCompositeToMapAndExport(composite);
 };
 
@@ -95,68 +121,162 @@ var addCompositeToMapAndExport = function(composite){
     description: 'FORWARD-ET_tester',
     folder: 'FORWARD-ET',
     scale: 1000,
-    region: framed.geometry().bounds(),
+    region: I_clip,
     maxPixels: 2e12,
     crs:'EPSG:4326'
   });
 
 };
 
-// var disp = TE_Joined.select('LST_Day_1km_aqua').mean().clip(framed);
-// Map.addLayer(disp, {min:270, max: 300}, 'lst');
-
-// var disp = TE_Joined.select('LST_Day_1km_terra').mean().clip(framed);
-// Map.addLayer(disp, {min:270, max: 300}, 'lst');
-
-// var s = ee.Image(2).clip(framed);
-// var res = s.divide(s.add(ee.Image(2)));
-
-// Map.addLayer(s, {min:2, max: 2}, 's');
-// Map.addLayer(res, {min:0, max: 1}, 'res');
-
 
 //**************************************************
 //User Interface
 //**************************************************
 //https://developers.google.com/earth-engine/ui_panels about the function of pannels
-var panelAbsolutePosition = ui.Panel({style: {width: '200px', height: '120px'}});
-panelAbsolutePosition.setLayout("absolute");
+
+// Title
+var toolTitle = ui.Label('Forward-ET Tool');
+toolTitle.style().set('fontWeight', 'bold');
+toolTitle.style().set('color', 'purple');
+toolTitle.style().set({
+  fontSize: '22px',
+});
+
+// Steps
+var toolFilter = ui.Label('1) Select Filters', {fontWeight: 'bold'});
+var toolRun = ui.Label('2) Run Model', {fontWeight: 'bold'});
+
+// Textboxes
+var I_startDateTexbox = ui.Textbox({
+  placeholder: 'Start date',
+  style: {width: '95px'}
+}).setValue('2003-01-01');   // sets default value
+
+
+var I_endDateTexbox = ui.Textbox({
+  placeholder: 'End date',
+  style: {width: '95px'}
+}).setValue('2003-01-02');
+
+var xMinTextbox = ui.Textbox({
+  placeholder: 'LonMin',
+  style: {width: '95px'}
+});
+
+var yMinTextbox = ui.Textbox({
+  placeholder: 'LatMin',
+  style: {width: '95px'}
+});
+
+var xMaxTextbox = ui.Textbox({
+  placeholder: 'LonMax',
+  style: {width: '95px'}
+});
+
+var yMaxTextbox = ui.Textbox({
+  placeholder: 'LatMax',
+  style: {width: '95px'}
+});
+
+var I_resolutionTextbox = ui.Textbox({
+  placeholder: 'Resolution (meters)'
+});
+
 
 // Run Button
 var runButton = ui.Button('Run FORWARD-ET Model');
 runButton.onClick(buildAndExportComposite);
 
-// Headers
-var userInputLabel = ui.Label('Forward-ET Tool');    // title user inputs
-userInputLabel.style().set('fontWeight', 'bold');
-userInputLabel.style().set({
-  fontSize: '22px',
-});
+
+// Drawing of extent
+var setFirstPoint = true;
+var extent = ee.Geometry.Rectangle([0, 0, 0, 0]);
+var geometryLayer = ui.Map.Layer(extent, {color: 'red'}, 'Extent');
+Map.add(geometryLayer);
+
+var getCoordinatesOnMouseClick = function(coords) {
+
+  var xCoord = coords.lon;
+  var yCoord = coords.lat;
+
+  if (setFirstPoint) {
+    setFirstPoint = !setFirstPoint;
+    xMinTextbox.setValue(xCoord);
+    yMinTextbox.setValue(yCoord);
+  }
+  else {
+    setFirstPoint = !setFirstPoint;
+    xMaxTextbox.setValue(xCoord);
+    yMaxTextbox.setValue(yCoord);
+  }
+
+  var I_minX = xMinTextbox.getValue();
+  var I_minY = yMinTextbox.getValue();
+  var I_maxX = xMaxTextbox.getValue();
+  var I_maxY = yMaxTextbox.getValue();
+
+  // makes sure that each number is not null or undefined
+  if ( (I_minX > 0 || I_minX < 0) && (I_minY > 0 || I_minY < 0) && (I_maxX > 0 || I_maxX < 0) && (I_maxY > 0 || I_maxY < 0) ) {
+
+    var inputGeometry = ee.Geometry.Rectangle([I_minX, I_minY, I_maxX, I_maxY]);
+    geometryLayer.setEeObject(inputGeometry);
+  }
+};
+
+
+// Adds behavior to map that clicking in map adds point to extent
+Map.onClick(getCoordinatesOnMouseClick);
+Map.style().set('cursor', 'crosshair');
+
+
+
+//***Add Extent textbox in displayed panel***//
+var topExtent = ui.Panel({layout: ui.Panel.Layout.flow('horizontal'), style: {width: '240px', margin: '-5px 0 0 0'}});
+
+topExtent.add(xMinTextbox);
+topExtent.add(yMinTextbox);
+var panelExtent = ui.Panel({layout: ui.Panel.Layout.flow('horizontal'), style: {width: '240px', margin: '-5px 0 0 0'}});
+
+panelExtent.add(xMaxTextbox);
+panelExtent.add(yMaxTextbox);
+
+//***Add Date textbox in displayed panel***//
+var panelDate = ui.Panel({layout: ui.Panel.Layout.flow('horizontal'), style: {width: '240px', margin: '-10px 0 0 0'}});
+
+panelDate.add(I_startDateTexbox);
+panelDate.add(I_endDateTexbox);
+
+//***Add Run button in displayed panel***//
+
+var panelRunButton = ui.Panel({layout: ui.Panel.Layout.flow('horizontal'), style: {width: '240px', height: '120px', margin: '-10px 0 0 0'}});
+panelRunButton.add(runButton);
+
 
 // create pannel in which buttons are to be added
-var panelLeft = ui.Panel({style: {width: '200px'}});
-panelLeft.setLayout(ui.Panel.Layout.flow());
+var panel = ui.Panel({layout: ui.Panel.Layout.flow('vertical'), style: {width: '240px', padding: '8px'}});
 
 // add contents
-panelLeft.add(userInputLabel);
+panel.add(toolTitle);
+panel.add(toolFilter);
+panel.add(ui.Label('Extent', {color: 'gray', fontWeight: 'italic'}));
+panel.add(topExtent);
+panel.add(panelExtent);
 
-panelLeft.add(panelAbsolutePosition);
-panelLeft.style({position: "top-left"});
+panel.add(ui.Label("Start/End date (YYYY-MM-DD)", {color: 'gray'}));
+panel.add(panelDate);
 
-// panel for run button
-var panelRunButton = ui.Panel({style: {width: '200px'}});
-panelRunButton.add(runButton);
-panelLeft.add(panelRunButton);
+panel.style({position: "top-left"});
 
+panel.add(toolRun);
+panel.add(panelRunButton);
 
 // define panel for no image exception
-var panelException = ui.Panel({style: {width: '200px'}});  // , height:'100px'
+var panelException = ui.Panel({style: {width: '240px'}});
 panelException.setLayout(ui.Panel.Layout.flow());
 
-//---------------------------------------
-// Makes pannel appear in console
-print(panelException);
-ui.root.add(panelLeft);
+
+// Add the panel to the ui.root.
+ui.root.add(panel);
 
 //This function reprojects MODIS Sinusoidal projection to WGS84
 function reprojMODIS(image) {
@@ -298,8 +418,8 @@ function maskTEcomposite(image) {
                   .rename('MASK_comp');
   var LST_composite = ee.Image(LST_mask.eq(1).multiply(image.select('LST_Day_1km_terra')))
                       .add(ee.Image(LST_mask.eq(2).multiply(image.select('LST_Day_1km_aqua'))))
-                      .add(ee.Image(LST_mask.eq(3)).multiply(ee.Image((image.select('Day_view_angle_aqua').subtract(image.select('Day_view_time_terra'))).lt(0).multiply(image.select('LST_Day_1km_aqua')))
-                      .add(ee.Image((image.select('Day_view_angle_aqua').subtract(image.select('Day_view_time_terra'))).gte(0).multiply(image.select('LST_Day_1km_terra'))))))
+                      .add(ee.Image(LST_mask.eq(3)).multiply(ee.Image((image.select('Day_view_angle_aqua').subtract(image.select('Day_view_angle_terra'))).lt(0).multiply(image.select('LST_Day_1km_aqua')))
+                      .add(ee.Image((image.select('Day_view_angle_aqua').subtract(image.select('Day_view_angle_terra'))).gte(0).multiply(image.select('LST_Day_1km_terra'))))))
                       .multiply(0.02).rename('LST_comp');
   var DVT_composite = ee.Image(LST_mask.eq(1).multiply(image.select('Day_view_time_terra')))
                       .add(ee.Image(LST_mask.eq(2).multiply(image.select('Day_view_time_aqua'))))
@@ -522,7 +642,7 @@ function PET(image) {
   var RnCanopy = image.select('Rn_Canopy');
   var Rn_SOIL = image.select('Rn_SOIL');
   //TODO: DEM to be changed later
-  var Altitude = ee.Image(1);
+  var Altitude = ee.Image('CGIAR/SRTM90_V4');
 
   //PotET.calPsycometricConstant
   //P = 101.3 * (((293 - 0.0065 * ASL_Altitude_m) / 293)**5.26)
@@ -590,4 +710,23 @@ function PET(image) {
 
 function merge_bands(element) {
   return ee.Image.cat(element.get('primary'), element.get('secondary'));
+}
+
+/**
+ * undefined values are considered to be false. If not all values are defined, print an error message
+ */
+function handleNoGeometryExcpetion(){
+  if(! (I_minX && I_maxX && I_minY && I_maxY ) ) {
+    print("No valid geometry input");
+  }
+}
+
+/**
+ * returns 1 if I_startDate is later in the year than I_endDate, 0 otherwise.
+ */
+function testIfStartDateLater(){
+  var eeStartDate = ee.Date(I_startDate); // compares wheter I_startDate is later than I_endDate. Only MM-DD is compared, because I_startYear is just a placeholder
+  var eeEndDate = ee.Date(I_endDate);
+
+  return eeStartDate.difference(eeEndDate, 'day').gt(0);
 }
