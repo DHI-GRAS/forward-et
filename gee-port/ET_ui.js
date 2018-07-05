@@ -1,5 +1,10 @@
+//TODO: Q&A: the implementation is designed for producing daily AET within a certain year.
+//TODO: Q&A:the GEE export output limitation
+//TODO: Q&A: the UI enables extent selection (given coordinates or drawing extent), date selection
+//TODO: Q&A: if we have time, I'm curious to know a bit more on the ET estimate and the f constrains
+
 //**************************************************
-// (S_0) Definition of inputs as global variables
+// (P_0) Definition of inputs as global variables
 //**************************************************
 
 // Coordinates of points to build extent
@@ -11,71 +16,131 @@ var I_clip;
 //Study period
 var I_startDate, I_endDate;
 
-//A pre-defined area
-var framed = ee.FeatureCollection('ft:1uZ5LdtjfS6fcrCpiKJw9vko91P6do30nFtt2FNp2', 'geometry');
-
 Map.setCenter(20, 5, 9);
 Map.setOptions('Hybrid');
 Map.setZoom(2);
 
-
+//**************************************************
+// (P_1) Main ET module
+//**************************************************
 var getCollection = function(){
   //define variable
-  var startDate = ee.String(I_startDate);
-  var endDate = ee.String(I_endDate);
+  var startDate = ee.Date(I_startDate);
+  // var endDate = ee.Date(I_endDate);
+  var endDate = ee.Date(I_endDate).advance(1, 'day');
+
+  var endDateDOY = ee.Date(I_endDate);
+
+  var requiredYear = startDate.get('year').toInt();
 
 
-  var I_sr = ['state_1km', 'SensorZenith', 'sur_refl_b01', 'sur_refl_b02']
+  //convert to daily frequency
+  var startDoy = ee.Number.parse(startDate.getRelative('day', 'year')).add(1);
+  var endDoy = ee.Number.parse(endDateDOY.getRelative('day', 'year')).add(1);
+  var days = ee.List.sequence(startDoy,endDoy);
+
+  var nod = endDate.difference(startDate, 'day');
+
+  print ('Number of days/outputs', nod);
+
+
+  var I_sr = ['state_1km', 'SensorZenith', 'sur_refl_b01', 'sur_refl_b02'];
   var I_te = ['LST_Day_1km', 'QC_Day', 'Day_view_time', 'Day_view_angle',
-              'Emis_31', 'Emis_32']
-  var I_laifpar = ['Fpar', 'Lai', 'FparExtra_QC']
-  var I_ndvi = ['NDVI', 'SummaryQA']
+              'Emis_31', 'Emis_32'];
+  var I_laifpar = ['Fpar', 'Lai', 'FparExtra_QC'];
+  var I_ndvi = ['NDVI', 'SummaryQA'];
   var I_albedo = ['Albedo_BSA_shortwave', 'Albedo_WSA_shortwave',
-                  'BRDF_Albedo_Band_Mandatory_Quality_shortwave']
+                  'BRDF_Albedo_Band_Mandatory_Quality_shortwave'];
+  var I_climate = ['AvgSurfT_inst', 'SWdown_f_tavg',
+                  'LWdown_f_tavg'];
+  //Gather GEE image collections
+ var MODIS_SR = ee.ImageCollection("MODIS/006/MOD09GA")
+        .filterDate(startDate, endDate).map(getDOY).map(reprojMODIS).select(I_sr).map(maskSR)
+        .filter(ee.Filter.and(ee.Filter.gte('day', startDoy), ee.Filter.lte('day', endDoy))),
+    MODIS_TE_TERRA = ee.ImageCollection("MODIS/006/MOD11A1")
+        .filterDate(startDate, endDate).map(getDOY).map(reprojMODIS).select(I_te).map(renameTEterra).map(maskTEterra)
+        .filter(ee.Filter.and(ee.Filter.gte('day', startDoy), ee.Filter.lte('day', endDoy))),
+    MODIS_TE_AQUA = ee.ImageCollection("MODIS/006/MYD11A1")
+        .filterDate(startDate, endDate).map(getDOY).map(reprojMODIS).select(I_te).map(renameTEaqua).map(maskTEaqua)
+        .filter(ee.Filter.and(ee.Filter.gte('day', startDoy), ee.Filter.lte('day', endDoy))),
+    MODIS_NDVI = ee.ImageCollection("MODIS/006/MOD13A1")
+        .filterDate(startDate, endDate).map(getDOY).map(reprojMODIS).select(I_ndvi).map(maskNDVI)
+        .filter(ee.Filter.and(ee.Filter.gte('day', startDoy), ee.Filter.lte('day', endDoy))),
+    MODIS_LAIFPAR = ee.ImageCollection("MODIS/006/MCD15A3H")
+        .filterDate(startDate, endDate).map(getDOY).map(reprojMODIS).select(I_laifpar).map(maskLAIFPAR)
+        .filter(ee.Filter.and(ee.Filter.gte('day', startDoy), ee.Filter.lte('day', endDoy))),
+    MODIS_BRDFA = ee.ImageCollection("MODIS/006/MCD43A3")
+        .filterDate(startDate, endDate).map(getDOY).map(reprojMODIS).select(I_albedo).map(maskALBEDO)
+        .filter(ee.Filter.and(ee.Filter.gte('day', startDoy), ee.Filter.lte('day', endDoy))),
+    GLDAS = ee.ImageCollection("NASA/GLDAS/V021/NOAH/G025/T3H").filterDate(startDate, endDate).select(I_climate);
 
-  var MODIS_SR = ee.ImageCollection("MODIS/006/MOD09GA")
-          .filterDate(startDate, endDate).map(reprojMODIS).select(I_sr).map(maskSR),
-      MODIS_TE_TERRA = ee.ImageCollection("MODIS/006/MOD11A1")
-          .filterDate(startDate, endDate).map(reprojMODIS).select(I_te).map(renameTEterra).map(maskTEterra),
-      MODIS_TE_AQUA = ee.ImageCollection("MODIS/006/MYD11A1")
-          .filterDate(startDate, endDate).map(reprojMODIS).select(I_te).map(renameTEaqua).map(maskTEaqua),
-      MODIS_NDVI = ee.ImageCollection("MODIS/006/MOD13A1")
-          .filterDate(startDate, endDate).map(reprojMODIS).select(I_ndvi).map(maskNDVI),
-      MODIS_LAIFPAR = ee.ImageCollection("MODIS/006/MCD15A3H")
-          .filterDate(startDate, endDate).map(reprojMODIS).select(I_laifpar).map(maskLAIFPAR),
-      MODIS_BRDFA = ee.ImageCollection("MODIS/006/MCD43A3")
-          .filterDate(startDate, endDate).map(reprojMODIS).select(I_albedo).map(maskALBEDO);
-
+  //3-hour to daily
+  var GLDAS_DAILY = ee.ImageCollection.fromImages(days.map(function(d) {
+    var daily_mean = GLDAS.filter(ee.Filter.calendarRange({
+      start: d,
+      field: 'day_of_year'
+    })).mean();
+    var daily_Tmax = GLDAS.select('AvgSurfT_inst').filter(ee.Filter.calendarRange({
+      start: d,
+      field: 'day_of_year'
+    })).max().rename('TMAX');
+    var daily_Tmin = GLDAS.select('AvgSurfT_inst').filter(ee.Filter.calendarRange({
+      start: d,
+      field: 'day_of_year'
+    })).min().rename('TMIN');
+    return daily_mean.addBands(daily_Tmax).addBands(daily_Tmin).set('day', d);
+  })).filter(ee.Filter.and(ee.Filter.gte('day', startDoy), ee.Filter.lte('day', endDoy)));
+  print ('GLDAS', GLDAS_DAILY);
+  //NDVI: 16-day to daily
+  var NDVI_DAILY = make_DailyIC(16, MODIS_NDVI, 'NDVI', days);
+  //LAI: 4-day to daily
+  var LAI_DAILY = make_DailyIC(4, MODIS_LAIFPAR, 'Lai', days);
+  //FPAR: 4-day to daily
+  var FPAR_DAILY = make_DailyIC(4, MODIS_LAIFPAR, 'Fpar', days);
 
   // Define the join and filter
   var Join = ee.Join.inner();
   var FilterOnStartTime = ee.Filter.equals({
-                                          'leftField': 'system:time_start',
-                                          'rightField': 'system:time_start'
+                                          'leftField': 'day',
+                                          'rightField': 'day'
                                           });
 
   var TE_Joined = ee.ImageCollection(Join.apply(MODIS_TE_TERRA, MODIS_TE_AQUA, FilterOnStartTime)).map(merge_bands).map(maskTEcomposite);
 
+  var NG_Joined = ee.ImageCollection(Join.apply(NDVI_DAILY, GLDAS_DAILY, FilterOnStartTime)).map(merge_bands);
+
+  var LF_Joined = ee.ImageCollection(Join.apply(LAI_DAILY, FPAR_DAILY, FilterOnStartTime)).map(merge_bands);
 
   // Join the collections, passing entries through the filter
-  var AL_Joined = ee.ImageCollection(Join.apply(MODIS_BRDFA, MODIS_LAIFPAR, FilterOnStartTime)).map(merge_bands);
+  var AL_Joined = ee.ImageCollection(Join.apply(MODIS_BRDFA, LF_Joined, FilterOnStartTime)).map(merge_bands);
 
+  var ALTE_Joined = ee.ImageCollection(Join.apply(AL_Joined, TE_Joined, FilterOnStartTime)).map(merge_bands);
+  var FinalDataset = ee.ImageCollection(Join.apply(NG_Joined, ALTE_Joined, FilterOnStartTime)).map(merge_bands);
 
-  var FinalDataset = ee.ImageCollection(Join.apply(AL_Joined, TE_Joined, FilterOnStartTime)).map(merge_bands);
+  print (FinalDataset)
 
-
-  var PotEVTR = FinalDataset.map(calc_albedo).select('Albedo','Lai', 'EMIS_comp', 'LST_comp', 'DVT_comp', 'MASK_comp')
+  var PotEVTR = FinalDataset.map(get_VIs).map(calc_albedo).select('Albedo','NDVI','LAI', 'FPAR', 'AvgSurfT_inst', 'TMAX', 'TMIN', 'SWdown_f_tavg',
+              'LWdown_f_tavg', 'EMIS_comp', 'LST_comp', 'DVT_comp', 'MASK_comp')
               .map(get_SWR_inputs)
               .map(calc_ShortWaveRadiation)
-              .map(get_LWR_inputs)
               .map(calc_LongWaveRadiation)
               .map(get_meantemp)
-              .map(get_LAI)
               .map(split_cannopy)
-              .map(PET);
+              .map(PET)
+              .map(calc_Constrains);
+  print (PotEVTR)
+
+  //soil moisture constraints
+  var SMCcollection = calSOILMoistureConstrain_f_Zhang(requiredYear)
+                      .filter(ee.Filter.and(ee.Filter.gte('day', startDoy), ee.Filter.lte('day', endDoy)));
+
+  print (SMCcollection);
   return ee.ImageCollection(PotEVTR);
 };
 
+//**************************************************
+// (P_2) Run the module with UI inputs and export
+//**************************************************
 var buildAndExportComposite = function() {
   // clear exceptions from previous run
   panelException.clear();
@@ -104,7 +169,7 @@ var buildAndExportComposite = function() {
 
 var addCompositeToMapAndExport = function(composite){
   // create layer
-  var compositeLayer = ui.Map.Layer(composite, {min: -2500, max: -1000}, 'PET');
+  var compositeLayer = ui.Map.Layer(composite, {min: -5000, max: 0}, 'Daliy Mean PET');
 
   // remove layer 'Composite' of previous composite call to avoid layer stacking
   var numberOfLayers = ee.Number(Map.layers().length()).getInfo();
@@ -128,160 +193,58 @@ var addCompositeToMapAndExport = function(composite){
 
 };
 
-
 //**************************************************
-//User Interface
+// (P_3) Functions
 //**************************************************
-//https://developers.google.com/earth-engine/ui_panels about the function of pannels
+//produce daily frequency inputs by linear interpolation
+//TODO: check the profile
+function make_DailyIC(freq, collection, band, days){
+  var IC_daily = ee.ImageCollection.fromImages(days.map(function(d) {
+    freq = ee.Number(freq);
+    var doy = ee.Number(d);
+    //get the reminder btw doy and 16-day frequency
+    var c = ee.Number(d).subtract(1).mod(freq);
+    //get the divisible part btw doy and 16-day frequency
+    var e = ee.Number(d).subtract(1).divide(freq).floor();
+    //select MODIS image
+    var MODIS_sdoy = e.multiply(freq).add(1);
+    var MODIS_edoy = MODIS_sdoy.add(freq);
+    // doy of the last MODIS image
+    var MODIS_fdoy = ee.Number(ee.Image(collection.toList(collection.size()).get(-1)).get('day'));
+    var simg = ee.Image(0);
+    simg = collection.filter(ee.Filter.eq('day', MODIS_sdoy)).select(band).mean().toDouble();
+    var eimg = ee.Image(0);
+    eimg = collection.filter(ee.Filter.eq('day', MODIS_edoy)).select(band).mean().toDouble();
+    // linear interpolate btw two adjacent images
+    var condi = doy.lt(MODIS_fdoy);
+    var interp_img = ee.Image(
+        ee.Algorithms.If(
+          condi,
+          eimg.subtract(simg).divide(freq).multiply(c).add(simg),
+          simg
+        )
+      );
+    return interp_img.set('day', d);
+  }));
 
-// Title
-var toolTitle = ui.Label('Forward-ET Tool');
-toolTitle.style().set('fontWeight', 'bold');
-toolTitle.style().set('color', 'purple');
-toolTitle.style().set({
-  fontSize: '22px',
-});
+  return IC_daily;
+}
+//create 'day' attribute in property: the calculation amongst different collections is control by 'day' attribute
+function getDOY(image) {
+  var I_doy = ee.Number.parse(image.date().getRelative('day', 'year')).add(1);
+  return image.set('day', I_doy)
+}
+//add time band in collection as DOY
+function getTIME(image) {
+  var Doy = ee.Image.constant(ee.Number(image.get('day'))).long().rename('time');
+  return image.addBands(Doy);
+}
 
-// Steps
-var toolFilter = ui.Label('1) Select Filters', {fontWeight: 'bold'});
-var toolRun = ui.Label('2) Run Model', {fontWeight: 'bold'});
-
-// Textboxes
-var I_startDateTexbox = ui.Textbox({
-  placeholder: 'Start date',
-  style: {width: '95px'}
-}).setValue('2003-01-01');   // sets default value
-
-
-var I_endDateTexbox = ui.Textbox({
-  placeholder: 'End date',
-  style: {width: '95px'}
-}).setValue('2003-01-02');
-
-var xMinTextbox = ui.Textbox({
-  placeholder: 'LonMin',
-  style: {width: '95px'}
-});
-
-var yMinTextbox = ui.Textbox({
-  placeholder: 'LatMin',
-  style: {width: '95px'}
-});
-
-var xMaxTextbox = ui.Textbox({
-  placeholder: 'LonMax',
-  style: {width: '95px'}
-});
-
-var yMaxTextbox = ui.Textbox({
-  placeholder: 'LatMax',
-  style: {width: '95px'}
-});
-
-var I_resolutionTextbox = ui.Textbox({
-  placeholder: 'Resolution (meters)'
-});
-
-
-// Run Button
-var runButton = ui.Button('Run FORWARD-ET Model');
-runButton.onClick(buildAndExportComposite);
-
-
-// Drawing of extent
-var setFirstPoint = true;
-var extent = ee.Geometry.Rectangle([0, 0, 0, 0]);
-var geometryLayer = ui.Map.Layer(extent, {color: 'red'}, 'Extent');
-Map.add(geometryLayer);
-
-var getCoordinatesOnMouseClick = function(coords) {
-
-  var xCoord = coords.lon;
-  var yCoord = coords.lat;
-
-  if (setFirstPoint) {
-    setFirstPoint = !setFirstPoint;
-    xMinTextbox.setValue(xCoord);
-    yMinTextbox.setValue(yCoord);
-  }
-  else {
-    setFirstPoint = !setFirstPoint;
-    xMaxTextbox.setValue(xCoord);
-    yMaxTextbox.setValue(yCoord);
-  }
-
-  var I_minX = xMinTextbox.getValue();
-  var I_minY = yMinTextbox.getValue();
-  var I_maxX = xMaxTextbox.getValue();
-  var I_maxY = yMaxTextbox.getValue();
-
-  // makes sure that each number is not null or undefined
-  if ( (I_minX > 0 || I_minX < 0) && (I_minY > 0 || I_minY < 0) && (I_maxX > 0 || I_maxX < 0) && (I_maxY > 0 || I_maxY < 0) ) {
-
-    var inputGeometry = ee.Geometry.Rectangle([I_minX, I_minY, I_maxX, I_maxY]);
-    geometryLayer.setEeObject(inputGeometry);
-  }
-};
-
-
-// Adds behavior to map that clicking in map adds point to extent
-Map.onClick(getCoordinatesOnMouseClick);
-Map.style().set('cursor', 'crosshair');
-
-
-
-//***Add Extent textbox in displayed panel***//
-var topExtent = ui.Panel({layout: ui.Panel.Layout.flow('horizontal'), style: {width: '240px', margin: '-5px 0 0 0'}});
-
-topExtent.add(xMinTextbox);
-topExtent.add(yMinTextbox);
-var panelExtent = ui.Panel({layout: ui.Panel.Layout.flow('horizontal'), style: {width: '240px', margin: '-5px 0 0 0'}});
-
-panelExtent.add(xMaxTextbox);
-panelExtent.add(yMaxTextbox);
-
-//***Add Date textbox in displayed panel***//
-var panelDate = ui.Panel({layout: ui.Panel.Layout.flow('horizontal'), style: {width: '240px', margin: '-10px 0 0 0'}});
-
-panelDate.add(I_startDateTexbox);
-panelDate.add(I_endDateTexbox);
-
-//***Add Run button in displayed panel***//
-
-var panelRunButton = ui.Panel({layout: ui.Panel.Layout.flow('horizontal'), style: {width: '240px', height: '120px', margin: '-10px 0 0 0'}});
-panelRunButton.add(runButton);
-
-
-// create pannel in which buttons are to be added
-var panel = ui.Panel({layout: ui.Panel.Layout.flow('vertical'), style: {width: '240px', padding: '8px'}});
-
-// add contents
-panel.add(toolTitle);
-panel.add(toolFilter);
-panel.add(ui.Label('Extent', {color: 'gray', fontWeight: 'italic'}));
-panel.add(topExtent);
-panel.add(panelExtent);
-
-panel.add(ui.Label("Start/End date (YYYY-MM-DD)", {color: 'gray'}));
-panel.add(panelDate);
-
-panel.style({position: "top-left"});
-
-panel.add(toolRun);
-panel.add(panelRunButton);
-
-// define panel for no image exception
-var panelException = ui.Panel({style: {width: '240px'}});
-panelException.setLayout(ui.Panel.Layout.flow());
-
-
-// Add the panel to the ui.root.
-ui.root.add(panel);
-
-//This function reprojects MODIS Sinusoidal projection to WGS84
+//reproject image to WGS84 projection
 function reprojMODIS(image) {
   return image.reproject('EPSG:4326', null, 500).set('system:time_start',
-  image.get('system:time_start'));
+  image.get('system:time_start')).set('day',
+  image.get('day'));
 }
 
 //This function merges bands from multiply collections
@@ -303,12 +266,8 @@ function getQABits(image, start, end, newName) {
                   .rightShift(start);
 }
 
-//**************************************************
-// Loads of functions to keep desired pixels for MODIS products.
-//TODO: check QC bits
-//**************************************************
-
 //function for surface reflectance data masking
+//TODO: check QC bits
 function maskSR(image) {
   // Select the QA band.
   var QA = image.select('state_1km');
@@ -320,6 +279,7 @@ function maskSR(image) {
 }
 
 //function for LAI/FPAR data masking
+//TODO: check QC bits
 function maskLAIFPAR(image) {
   // Select the QA band.
   var QA = image.select('FparExtra_QC');
@@ -336,6 +296,7 @@ function maskLAIFPAR(image) {
 }
 
 //function for NDVI data masking
+//TODO: check QC bits
 function maskNDVI(image) {
   // Select the QA band.
   var QA = image.select('SummaryQA');
@@ -346,6 +307,7 @@ function maskNDVI(image) {
 }
 
 //function for Albedo data masking
+//TODO: check QC bits
 function maskALBEDO(image) {
   // Select the QA band.
   var QA = image.select('BRDF_Albedo_Band_Mandatory_Quality_shortwave');
@@ -392,6 +354,7 @@ function renameTEaqua(image) {
 }
 
 //mask terra bands
+//TODO: check QC bits
 function maskTEterra(image) {
   // Select the QA band.
   var QA = image.select('QC_Day_terra');
@@ -402,6 +365,7 @@ function maskTEterra(image) {
 }
 
 //mask aqua bands
+//TODO: check QC bits
 function maskTEaqua(image) {
   // Select the QA band.
   var QA = image.select('QC_Day_aqua');
@@ -412,7 +376,7 @@ function maskTEaqua(image) {
 }
 
 //Create composite from Terra and Aqua
-//TODO: revise after meeting
+//TODO: check output
 function maskTEcomposite(image) {
   var LST_mask = image.select('internal_quality_flag_terra').add(image.select('internal_quality_flag_aqua'))
                   .rename('MASK_comp');
@@ -441,13 +405,9 @@ function maskTEcomposite(image) {
               .addBands(DVT_composite.updateMask(DVT_composite.neq(0).and(DVT_composite.lte(24)))).addBands(EMIS_composite);
 }
 
-//**************************************************
-// Loads of functions to keep desired pixels for MODIS products.
-//TODO: cross-check equation validity
-//**************************************************
 //fn.GetShortWaveRadiationInputs
 function get_SWR_inputs(image) {
-  // TODO: temporal numeric constant: corresponding inputs will be defined later
+  // TODO: sunhours and latitude
   // """Units:
   //     Sunhours=hours*10
   //     Latitude=Degress
@@ -455,25 +415,24 @@ function get_SWR_inputs(image) {
   // """
   var Sunhours = ee.Image(10).divide(10).rename('Sunhours');
   var Latitude = ee.Image(1).rename('Latitude');
-  var Doy = ee.Image(1).rename('Doy');
+  var Doy = ee.Image(ee.Number(image.get('day'))).rename('Doy');
   return image.addBands(Sunhours.updateMask(Sunhours.neq(0))).addBands(Latitude).addBands(Doy);
 }
 
-//fn.GetLongWaveRadiationInputs
-//TODO: add DASEMON_Tmax, DASEMON_Tmin
-function get_LWR_inputs(image) {
-  var DASEMON_Tmax = ee.Image(1).rename('TMAX');
-  var DASEMON_Tmin = ee.Image(1).rename('TMIN');
-  return image.addBands(DASEMON_Tmax).addBands(DASEMON_Tmin);
+
+
+
+//rescale the vegetation indexes
+function get_VIs(image) {
+  var LAI = image.select('Lai').rename('LAI').divide(10);
+  var FPAR = image.select('Fpar').rename('FPAR').divide(100);
+  var NDVI = image.select('NDVI').divide(10000);
+  return image.addBands(LAI).addBands(FPAR).addBands(NDVI);
 }
 
-//fn.GetLAI
-function get_LAI(image) {
-  var LAI = image.select('Lai').rename('LAI').divide(10);
-  return image.addBands(LAI);
-}
 
 //fn.GetMeanTemperature
+//TODO: GLDAS temperature unit
 function get_meantemp(image) {
   var AirMax = image.select('TMAX');
   var AirMin = image.select('TMIN');
@@ -624,8 +583,27 @@ function calc_LongWaveRadiation(image) {
   var RnDaily = (RSnetInstant.add(RLnet)).multiply(J).rename('RnDaily');
   return image.addBands(RnDaily).addBands(Tair_MODIS_passtime);
 }
-//fn.GetLAI
-//fn.GetMeanTemperature
+//TODO: clarify the GLDAS input
+function calc_NetRadiation(image) {
+  var fimage = image.select(['LST_comp', 'DVT_comp', 'EMIS_comp',
+                              'LWdown_f_tavg', 'Swnet_tavg'])
+  //CalLongWave_Outgoing
+  //Rlw_out = Stef * (Emissivity) * (LST**4)
+  var Stef = ee.Image(5.67e-008).rename('Stef');
+  var Rlw_out = fimage.expression(
+        'Stef * (Emissivity) * (LST**4)', {
+        'Stef': fimage.select('Stef'),
+        'Emissivity': fimage.select('EMIS_comp'),
+        'LST': fimage.select('LST_comp')
+  }).rename('Rlw_out');
+  var RLnet = fimage.select('LWdown_f_tavg').subtract(Rlw_out);
+  //PTJPL_EVAPOTRANSPIRATION.py line 54-55
+  var RSnetInstant = fimage.select('Swnet_tavg').divide(J);
+  var RnDaily = (RSnetInstant.add(RLnet)).multiply(J).rename('RnDaily');
+  return image.addBands(RnDaily);
+}
+
+
 //rf.SplitRn_SOIL_CANOPY
 function split_cannopy(image) {
   var kRn = 0.6;
@@ -636,12 +614,14 @@ function split_cannopy(image) {
 
   return image.addBands(Rn_SOIL).addBands(Rn_Canopy);
 }
+
 //This function gives PET following PTJPL_EVAPOTRANSPIRATION.py line 60-66
 function PET(image) {
-  var Tmean = image.select('Tmean');
+  //TODO: Tmean is GLDAS daily mean temperature
+  var Tmean = image.select('AvgSurfT_inst');
   var RnCanopy = image.select('Rn_Canopy');
   var Rn_SOIL = image.select('Rn_SOIL');
-  //TODO: DEM to be changed later
+  //TODO: DEM check
   var Altitude = ee.Image('CGIAR/SRTM90_V4');
 
   //PotET.calPsycometricConstant
@@ -683,30 +663,167 @@ function PET(image) {
 
   //PotET.calPotET_CANOPY
   //Results canopy potential evapotranspiration Etpc % Following Pristley Taylor (1972)(eq 14)
-  //TODO: Check whether s changed: Etpc = alphaPT * (s / (s + psi)) * RnCanopy
-  //ANSWER: s doesn't change, remove TODO comment PLEASE
   var alphaPT = ee.Image(1.26);
   //Etpc = alphaPT * (s / (s + psi)) * RnCanopy
   //Unit (Wm-2)
+  //PotET_CANOPY
   var Etpc = image.expression(
         'alphaPT * (s / (s + psi)) * RnCanopy', {
         'alphaPT': alphaPT,
         's': s,
         'psi': psi,
         'RnCanopy': RnCanopy
-  });
+  }).rename('PotET_CANOPY');
 
   //PotET.calPotET_SOIL
   var G = 0;
   //Etps = alphaPT * (s / (s + psi)) * (Rn_SOIL - G)
-  var Etps = ee.Image(alphaPT).multiply(s.divide(s.add(psi))).multiply(Rn_SOIL.subtract(G));
+  //PotET_SOIL
+  var Etps = ee.Image(alphaPT).multiply(s.divide(s.add(psi))).multiply(Rn_SOIL.subtract(G)).rename('PotET_SOIL');
 
   //PET
   var PotEVTR = Etpc.add(Etps).rename('PET');
 
-  return image.addBands(PotEVTR);
+  return image.addBands(PotEVTR).addBands(Etpc).addBands(Etps);
+}
+// calculate the constrains for temperature, vegetation, plant moisture
+function calc_Constrains(image) {
+  //temperature constraints: ft
+  var Topt = ee.Image(25);
+  var ft = image.expression(
+        '1.1814 * (1 + exp(0.3 * (Topt - 10 - Tmean)))**-1', {
+        'Topt': Topt,
+        'Tmean': image.select('AvgSurfT_inst')
+  }).rename('ft');
+
+  //vegetation constraints: fg
+  var fIPAR = ee.Image(1).multiply(image.select('NDVI')).add(ee.Image(-0.05));
+  var fg = image.select('FPAR').divide(fIPAR).rename('fg');
+
+  //plant moisture constrains: fm
+  //TODO: fPARmax CHANGE LATER
+  var fPARmax = ee.Image(1);
+  var fm = image.select('FPAR').divide(fPARmax).rename('fm');
+
+  return image.addBands(ft).addBands(fg).addBands(fm);
+}
+//get images indicating whether the daily rainfall is effective
+function effRainyday(image) {
+  var Rainyday = image.gte(0.5).toInt().rename('effectRain');
+  return image.addBands(Rainyday);
+
+}
+//get a collection of images indicating the count number of cumulative rainfall
+//TODO: check correctness
+function drylength(current_one, previous_all){
+  var previous = ee.Image(ee.List(previous_all).get(-1));  // cast to establish the client-side type
+  var sum = current_one.add(previous).multiply(current_one).set('day', current_one.get('day'));
+
+  return ee.List(previous_all).add(sum);
 }
 
+
+//get a collection of images indicating the daily fzhang and fdrying constrains
+//TODO: GO through the Python code together
+function calSOILMoistureConstrain_f_Zhang(requiredYear){
+  var sYear = requiredYear;
+  var sDay = '-01-01';
+  var eDay = '-12-31';
+  var sDate = ee.Date(ee.String(ee.Number(sYear).toInt()).cat(sDay));
+  var eDate = ee.Date(ee.String(ee.Number(sYear).toInt()).cat(eDay));
+
+  var sDoy = ee.Number.parse(sDate.getRelative('day', 'year')).add(1);
+  var eDoy = ee.Number.parse(eDate.getRelative('day', 'year')).add(1);
+  print (eDoy, 'endDOY');
+
+  //precipitation
+  var CHIRPS_DAILY = ee.ImageCollection('UCSB-CHG/CHIRPS/DAILY').filterDate(sDate, eDate).map(getDOY);
+  //rainy day
+  var CHIRPS_EFFECT = CHIRPS_DAILY.map(effRainyday).select('effectRain');
+  var time0 = CHIRPS_EFFECT.first().get('day');
+  var RDcollection = ee.ImageCollection(ee.List(CHIRPS_EFFECT.iterate(drylength, ee.List([
+    CHIRPS_EFFECT.select('effectRain').max().set('day', time0)
+      .remap([0,1], [0,0], 0, "effectRain")
+      .rename('effectRain').cast({'effectRain': 'long'})
+  ])))).map(getTIME);
+  //soil equilibrium evaporation rate
+  //TODO: change later
+  var EQcollection = CHIRPS_DAILY;
+
+  var days = ee.List.sequence(sDoy,eDoy);
+  var byDay = ee.ImageCollection.fromImages(
+        days.map(function (d) {
+          var sumPrec = ee.Image(0);
+          var sumEqs = ee.Image(0);
+          var maxRainyday = RDcollection.filter(ee.Filter.lte('day', d)).max();
+          var Delta_t = ee.Image(d-1).subtract(maxRainyday);
+          var alpha_f = ee.Image(0.5);
+          //****Get the position of the maximum value***//
+          // turn image collection into an array
+          var array = RDcollection.filter(ee.Filter.lte('day', d)).toArray();
+
+          // sort array by the first band, keeping other bands
+          var axes = { image:0, band:1 };
+          var sort = array.arraySlice(axes.band, 0, 1);  // select bands from index 0 (inclusive) to 1 (exclusive)
+          var sorted = array.arraySort(sort);
+
+          // take the first image only
+          var length = sorted.arrayLength(axes.image);
+          var values = sorted.arraySlice(axes.image, length.subtract(1), length);
+
+          // convert back to an image
+          var max = values.arrayProject([axes.band]).arrayFlatten([['effectRain', 'time']]);
+          var MaxPos = max.select(1);
+          //****end****//
+
+          //different with Python since d starts from 1
+          if (d <= 15){
+            sumPrec = CHIRPS_DAILY.filter(ee.Filter.and(ee.Filter.gte('day', 0), ee.Filter.lte('day', d))).sum();
+            sumEqs = EQcollection.filter(ee.Filter.and(ee.Filter.gte('day', 0), ee.Filter.lte('day', d))).sum();
+          }
+          else if (d > 15){
+            sumPrec = CHIRPS_DAILY.filter(ee.Filter.and(ee.Filter.gte('day', d-16), ee.Filter.lte('day', d))).sum();
+            sumEqs = EQcollection.filter(ee.Filter.and(ee.Filter.gte('day', d-16), ee.Filter.lte('day', d))).sum();
+          }
+          var Fzang = sumPrec.divide(sumEqs).rename('precipitation');
+          var Fzang_all = Fzang.expression(
+              "(b('precipitation') <= 0) ? 0" +
+                ": (b('precipitation') > 1) ? 1" +
+                  ": b('precipitation')"
+          ).rename('Fzang_all');
+
+    //TODO: fdrying to be implemented
+
+
+
+          return Fzang_all.toDouble().set('day', d);
+  }));
+
+
+
+  return byDay;
+
+
+}
+//apply the constrains to PET
+function apply_contrains_ET(image) {
+  // """ CONSTRAINTS TO TRASNPIRATION"""
+  var ET_DAILY_CANOPY = image.expression(
+        'PotET_CANOPY * fm * ft * fg', {
+        'PotET_CANOPY': image.select('PotET_CANOPY'),
+        'fm': image.select('fm'),
+        'ft': image.select('ft'),
+        'fg': image.select('fg')
+  });
+
+  // """ CONSTRAINTS TO EVAPORATION"""
+  var ET_DAILYSOIL = image.select('PotET_SOIL').multiply(image.select('Fdrying_all'));
+
+  // """ TOTAL EVAPOTRASNPIRATION"""
+  var TOTAL_DAILY_ET_Constrained = ET_DAILYSOIL.add(ET_DAILY_CANOPY).rename('AET');
+
+  return TOTAL_DAILY_ET_Constrained;
+}
 
 function merge_bands(element) {
   return ee.Image.cat(element.get('primary'), element.get('secondary'));
@@ -730,3 +847,152 @@ function testIfStartDateLater(){
 
   return eeStartDate.difference(eeEndDate, 'day').gt(0);
 }
+
+//**************************************************
+// (P_4) UIs
+//**************************************************
+//https://developers.google.com/earth-engine/ui_panels about the function of pannels
+
+// Title
+var toolTitle = ui.Label('Forward-ET Tool');
+toolTitle.style().set('fontWeight', 'bold');
+toolTitle.style().set('color', 'purple');
+toolTitle.style().set({
+  fontSize: '22px',
+});
+
+// Steps
+var toolFilter = ui.Label('1) Select Filters', {fontWeight: 'bold'});
+var toolRun = ui.Label('2) Run Model', {fontWeight: 'bold'});
+
+// Textboxes
+var I_startDateTexbox = ui.Textbox({
+  placeholder: 'Start date',
+  style: {width: '95px'}
+}).setValue('2004-01-01');   // sets default value
+
+
+var I_endDateTexbox = ui.Textbox({
+  placeholder: 'End date',
+  style: {width: '95px'}
+}).setValue('2004-01-31');
+
+var xMinTextbox = ui.Textbox({
+  placeholder: 'LonMin',
+  style: {width: '95px'}
+});
+
+var yMinTextbox = ui.Textbox({
+  placeholder: 'LatMin',
+  style: {width: '95px'}
+});
+
+var xMaxTextbox = ui.Textbox({
+  placeholder: 'LonMax',
+  style: {width: '95px'}
+});
+
+var yMaxTextbox = ui.Textbox({
+  placeholder: 'LatMax',
+  style: {width: '95px'}
+});
+
+var I_resolutionTextbox = ui.Textbox({
+  placeholder: 'Resolution (meters)'
+});
+
+
+// Run Button
+var runButton = ui.Button('Run FORWARD-ET Model');
+runButton.onClick(buildAndExportComposite);
+
+
+// Drawing of extent
+var setFirstPoint = true;
+var extent = ee.Geometry.Rectangle([0, 0, 0, 0]);
+var geometryLayer = ui.Map.Layer(extent, {color: 'red'}, 'Extent');
+Map.add(geometryLayer);
+
+var getCoordinatesOnMouseClick = function(coords) {
+
+  var xCoord = coords.lon;
+  var yCoord = coords.lat;
+
+  if (setFirstPoint) {
+    setFirstPoint = !setFirstPoint;
+    xMinTextbox.setValue(xCoord);
+    yMinTextbox.setValue(yCoord);
+  }
+  else {
+    setFirstPoint = !setFirstPoint;
+    xMaxTextbox.setValue(xCoord);
+    yMaxTextbox.setValue(yCoord);
+  }
+
+  var I_minX = xMinTextbox.getValue();
+  var I_minY = yMinTextbox.getValue();
+  var I_maxX = xMaxTextbox.getValue();
+  var I_maxY = yMaxTextbox.getValue();
+
+  // makes sure that each number is not null or undefined
+  if ( (I_minX > 0 || I_minX < 0) && (I_minY > 0 || I_minY < 0) && (I_maxX > 0 || I_maxX < 0) && (I_maxY > 0 || I_maxY < 0) ) {
+
+    var inputGeometry = ee.Geometry.Rectangle([I_minX, I_minY, I_maxX, I_maxY]);
+    geometryLayer.setEeObject(inputGeometry);
+  }
+};
+
+
+// Adds behavior to map that clicking in map adds point to extent
+Map.onClick(getCoordinatesOnMouseClick);
+Map.style().set('cursor', 'crosshair');
+
+
+
+//***Add Extent textbox in displayed panel***//
+var topExtent = ui.Panel({layout: ui.Panel.Layout.flow('horizontal'), style: {width: '240px', margin: '-5px 0 0 0'}});
+
+topExtent.add(xMinTextbox);
+topExtent.add(yMinTextbox);
+var panelExtent = ui.Panel({layout: ui.Panel.Layout.flow('horizontal'), style: {width: '240px', margin: '-5px 0 0 0'}});
+
+panelExtent.add(xMaxTextbox);
+panelExtent.add(yMaxTextbox);
+
+//***Add Date textbox in displayed panel***//
+var panelDate = ui.Panel({layout: ui.Panel.Layout.flow('horizontal'), style: {width: '240px', margin: '-10px 0 0 0'}});
+
+panelDate.add(I_startDateTexbox);
+panelDate.add(I_endDateTexbox);
+
+//***Add Run button in displayed panel***//
+
+var panelRunButton = ui.Panel({layout: ui.Panel.Layout.flow('horizontal'), style: {width: '240px', height: '120px', margin: '-10px 0 0 0'}});
+panelRunButton.add(runButton);
+
+
+// create pannel in which buttons are to be added
+var panel = ui.Panel({layout: ui.Panel.Layout.flow('vertical'), style: {width: '240px', padding: '8px'}});
+
+// add contents
+panel.add(toolTitle);
+panel.add(toolFilter);
+panel.add(ui.Label('Extent', {color: 'gray', fontWeight: 'italic'}));
+panel.add(topExtent);
+panel.add(panelExtent);
+
+panel.add(ui.Label("Start/End date (YYYY-MM-DD)", {color: 'gray'}));
+panel.add(panelDate);
+
+panel.style({position: "top-left"});
+
+panel.add(toolRun);
+panel.add(panelRunButton);
+
+// define panel for no image exception
+var panelException = ui.Panel({style: {width: '240px'}});
+panelException.setLayout(ui.Panel.Layout.flow());
+
+
+// Add the panel to the ui.root.
+ui.root.add(panel);
